@@ -1,6 +1,11 @@
 import pool from '../config/database.js';
 
 export const UsuarioModel = {
+
+  // Columnas públicas del usuario (sin password_hash)
+  _publicUserFields: `id_usuario, uuid, nombre, apellido, email,
+              rol, activo, email_verificado, avatar_url, telefono,
+              created_at, updated_at`,
   
     // Busca un usuario por su email 
   findByEmail: async (email) => {
@@ -48,6 +53,19 @@ export const UsuarioModel = {
     return rows[0] ?? null;
   },
 
+  // Busca usuario por id con los campos públicos para perfil
+  findByIdWithDetails: async (id_usuario) => {
+    const [rows] = await pool.execute(
+      `SELECT ${UsuarioModel._publicUserFields}
+       FROM usuarios
+       WHERE id_usuario = ? AND deleted_at IS NULL
+       LIMIT 1`,
+      [id_usuario]
+    );
+
+    return rows[0] ?? null;
+  },
+
   
    //Crea un nuevo usuario.
    
@@ -67,6 +85,38 @@ export const UsuarioModel = {
       `UPDATE usuarios SET ultimo_acceso = NOW() WHERE id_usuario = ?`,
       [id_usuario]
     );
+  },
+
+  // Actualiza solo campos permitidos del perfil y retorna usuario actualizado
+  updatePerfil: async (id_usuario, { nombre, apellido, telefono, avatar_url }) => {
+    const [result] = await pool.execute(
+      `UPDATE usuarios
+       SET nombre = ?, apellido = ?, telefono = ?, avatar_url = ?, updated_at = NOW()
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [nombre, apellido, telefono, avatar_url, id_usuario]
+    );
+
+    if (result.affectedRows === 0) {
+      return null;
+    }
+
+    return UsuarioModel.findByIdWithDetails(id_usuario);
+  },
+
+  // Actualiza password_hash y updated_at
+  updatePassword: async (id_usuario, newPasswordHash) => {
+    const [result] = await pool.execute(
+      `UPDATE usuarios
+       SET password_hash = ?, updated_at = NOW()
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [newPasswordHash, id_usuario]
+    );
+
+    if (result.affectedRows === 0) {
+      return null;
+    }
+
+    return UsuarioModel.findByIdWithDetails(id_usuario);
   },
 
     // Elimina un usuario con (Soft Delete)
