@@ -4,7 +4,7 @@ API REST para la plataforma de monitoreo ambiental ciudadano GreenAlert. Constru
 
 ---
 
-## 📋 Tabla de Contenidos
+##  Tabla de Contenidos
 
 - [Stack Tecnológico](#stack-tecnológico)
 - [Requisitos Previos](#requisitos-previos)
@@ -21,7 +21,7 @@ API REST para la plataforma de monitoreo ambiental ciudadano GreenAlert. Constru
 
 ---
 
-## 🛠️ Stack Tecnológico
+##  Stack Tecnológico
 
 | Componente | Tecnología |
 |-----------|-----------|
@@ -36,7 +36,7 @@ API REST para la plataforma de monitoreo ambiental ciudadano GreenAlert. Constru
 
 ---
 
-## 📦 Requisitos Previos
+##  Requisitos Previos
 
 - **Node.js** 18.0.0 o superior ([descargar](https://nodejs.org/))
 - **npm** 9.0.0 o superior
@@ -53,7 +53,7 @@ mysql --version   # Ver. 8.0 o superior
 
 ---
 
-## 💾 Base de Datos
+##  Base de Datos
 
 ### Crear la base de datos
 
@@ -75,7 +75,7 @@ O importa manualmente el archivo `green-alert.sql` desde tu cliente MySQL.
 
 ---
 
-## 🚀 Instalación
+##  Instalación
 
 1. **Clonar el repositorio** (o descargar el código):
 
@@ -98,7 +98,7 @@ cp .env.example .env
 
 ---
 
-## ⚙️ Configuración
+##  Configuración
 
 ### Variables de Entorno (`.env`)
 
@@ -135,9 +135,14 @@ SMTP_PASS=tu_app_password
 
 Se incluye archivo `env.example` con variables requeridas como referencia.
 
+### Servicio de correo
+
+Se agrego el servicio `src/services/email.service.js` para envio de correos con Nodemailer.
+Usa las variables `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` y expone `enviarCorreo(to, subject, html)`.
+
 ---
 
-## ▶️ Ejecución
+##  Ejecución
 
 ### Desarrollo (con hot-reload)
 
@@ -155,7 +160,7 @@ npm start
 
 ---
 
-## 📝 Scripts Disponibles
+##  Scripts Disponibles
 
 ```bash
 npm run dev          # Inicia servidor con nodemon (desarrollo)
@@ -166,7 +171,7 @@ npm run lint         # Verifica código (si está configurado)
 
 ---
 
-## 📁 Estructura del Proyecto
+##  Estructura del Proyecto
 
 ```
 backend/
@@ -187,6 +192,7 @@ backend/
 │   │
 │   ├── controllers/              # Lógica de negocio
 │   │   ├── auth.controller.js
+│   │   ├── admin.controller.js
 │   │   ├── reporte.controller.js
 │   │   ├── categoria-riesgo.controller.js
 │   │   ├── health.controller.js
@@ -214,6 +220,7 @@ backend/
 │
 ├── routes/                       # Definición de endpoints
 │   ├── auth.routes.js
+│   ├── admin.routes.js
 │   ├── reporte.routes.js
 │   ├── categoria-riesgo.routes.js
 │   ├── usuario.routes.js
@@ -228,7 +235,7 @@ backend/
 
 ---
 
-## 🔌 Endpoints Disponibles
+##  Endpoints Disponibles
 
 ### Autenticación (`/auth`)
 
@@ -261,6 +268,19 @@ backend/
 | `GET` | `/categorias/estadisticas/resumen` | ❌ | Estadísticas por categoría |
 | `GET` | `/categorias/estadisticas/por-severidad` | ❌ | Estadísticas por severidad |
 
+### Administracion (`/admin`)
+
+Todas las rutas usan `verifyToken` y `requireRoles('admin')` aplicados en el router.
+
+| Metodo | Ruta | Protegida | Descripcion |
+|--------|------|-----------|-------------|
+| `GET` | `/admin/usuarios/stats` | ✅ | Estadisticas de usuarios y reportes |
+| `GET` | `/admin/usuarios` | ✅ | Listar usuarios con filtros y paginacion |
+| `GET` | `/admin/usuarios/:id` | ✅ | Obtener usuario por id |
+| `PATCH` | `/admin/usuarios/:id/rol` | ✅ | Cambiar rol del usuario |
+| `PATCH` | `/admin/usuarios/:id/estado` | ✅ | Activar o desactivar usuario |
+| `DELETE` | `/admin/usuarios/:id` | ✅ | Eliminar usuario (soft delete) |
+
 ### Health
 
 | Método | Ruta | Protegida | Descripción |
@@ -269,7 +289,7 @@ backend/
 
 ---
 
-## 🔐 Autenticación
+##  Autenticación
 
 ### JWT Token
 
@@ -289,10 +309,19 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### Middleware de Autenticación
 
 El middleware `verifyToken` valida JWT en rutas protegidas.
+Para control de acceso por rol se usa `requireRoles(...)` y debe declararse despues de `verifyToken`.
 
 ---
 
-## 💾 Base de Datos
+## Cambios recientes
+
+- Middleware `requireRoles` para control por rol en rutas protegidas.
+- Modelo de usuario con listados, conteos, cambios de rol/estado y estadisticas para administracion.
+- Controlador y router de administracion con proteccion global de `verifyToken` y `requireRoles('admin')`.
+
+---
+
+##  Base de Datos
 
 ### Conexión
 
@@ -312,7 +341,7 @@ mysqldump -u usuario -p base_datos > backup.sql
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 Actualmente no hay suite de tests. Para futuro se sugiere usar:
 - **Jest** para unit tests
@@ -321,7 +350,7 @@ Actualmente no hay suite de tests. Para futuro se sugiere usar:
 
 ---
 
-## 🚁 Deploy
+##  Deploy
 
 ### En Servidor Linux (DigitalOcean, Linode, etc.)
 
@@ -346,14 +375,14 @@ Se sugiere crear `Dockerfile` y `docker-compose.yml` para deployment containeriz
 
 ---
 
-## 📚 Documentación Adicional
+##  Documentación Adicional
 
 - [Endpoints Detallados](./docs/ENDPOINTS_PERFIL.md)
 - [Constantes de Validación](./docs/CONSTANTES_VALIDACION.js)
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Error: `Cannot find module 'express'`
 
@@ -387,19 +416,19 @@ lsof -i :3000
 
 ---
 
-## 📧 Contacto y Soporte
+##  Contacto y Soporte
 
 Para reportar bugs o sugerencias, abre un **Issue** en GitHub.
 
 ---
 
-## 📄 Licencia
+##  Licencia
 
 Este proyecto es parte de un trabajo académico. Ver licencia en el repositorio principal.
 
 ---
 
-## 🔄 Cambios Recientes
+##  Cambios Recientes
 
 ### v2.0
 
@@ -480,7 +509,7 @@ Ejecutar el script `DATABASE_COMPLETA.sql` en tu cliente MySQL/HeidiSQL:
 ### Salud
 - `GET /health`: estado del servidor y conexion a base de datos
 
-## 📝 Crear un Reporte
+##  Crear un Reporte
 
 Todos los tipos de contaminación ahora disponibles:
 
@@ -503,7 +532,7 @@ Authorization: Bearer {token}
 }
 ```
 
-## 🛠️ Estructura de Capas
+##  Estructura de Capas
 
 ```
 backend/
@@ -537,7 +566,7 @@ backend/
     └── CONSTANTES_VALIDACION.js    Constantes y validadores
 ```
 
-## 📚 Documentación Disponible
+##  Documentación Disponible
 
 - `GUIA_IMPLEMENTACION.md` - Guía completa de integración
 - `INICIO_RAPIDO.md` - Pasos rápidos (5 minutos)
@@ -545,7 +574,7 @@ backend/
 - `TAREA_GITHUB_FormularioReporte.md` - Tarea para el frontend
 - `DATABASE_COMPLETA.sql` - Script completo de BD (compatible HeidiSQL)
 
-## 🔍 Ejemplo de Uso
+##  Ejemplo de Uso
 
 **Crear un reporte de deforestación:**
 
@@ -577,7 +606,7 @@ curl http://localhost:3000/api/categorias/deforestacion/reportes?nivel_severidad
 curl http://localhost:3000/api/categorias/estadisticas/resumen
 ```
 
-## 🚀 Próximos Pasos
+##  Próximos Pasos
 
 1. **Frontend:** Implementar formulario para crear reportes (ver `TAREA_GITHUB_FormularioReporte.md`)
 2. **Testing:** Crear pruebas unitarias para los nuevos endpoints
