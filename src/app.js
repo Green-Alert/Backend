@@ -6,6 +6,7 @@ import healthRouter from '../routes/health.routes.js';
 import authRouter from '../routes/auth.routes.js';
 import reporteRouter from '../routes/reporte.routes.js';
 import categoriaRouter from '../routes/categoria-riesgo.routes.js';
+import adminRouter from '../routes/admin.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +23,7 @@ app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/reportes', reporteRouter);
 app.use('/categorias', categoriaRouter);
+app.use('/admin', adminRouter);
 
  
 app.use(notFoundHandler);
