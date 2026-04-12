@@ -226,7 +226,6 @@ export const UsuarioModel = {
 
     return result.affectedRows > 0;
   },
-
   // Actualiza rol del usuario
   updateRol: async (id_usuario, rol) => {
     const [result] = await pool.execute(
