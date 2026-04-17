@@ -293,4 +293,57 @@ export const UsuarioModel = {
     );
     return result.affectedRows > 0;
   },
+
+  // Guarda token de verificación de email
+  setVerificationToken: async (id_usuario, tokenVerificacion, tokenVerificacionExp) => {
+    const [result] = await pool.execute(
+      `UPDATE usuarios
+       SET token_verificacion_email = ?, token_verificacion_email_exp = ?, updated_at = NOW()
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [tokenVerificacion, tokenVerificacionExp, id_usuario]
+    );
+
+    return result.affectedRows > 0;
+  },
+
+  // Busca usuario por token de verificación de email
+  findByVerificationToken: async (tokenVerificacion) => {
+    const [rows] = await pool.execute(
+      `SELECT id_usuario, email, email_verificado, token_verificacion_email_exp
+       FROM usuarios
+       WHERE token_verificacion_email = ? AND deleted_at IS NULL
+       LIMIT 1`,
+      [tokenVerificacion]
+    );
+
+    return rows[0] ?? null;
+  },
+
+  // Marca email como verificado y limpia token
+  markEmailAsVerified: async (id_usuario) => {
+    const [result] = await pool.execute(
+      `UPDATE usuarios
+       SET email_verificado = 1, token_verificacion_email = NULL, token_verificacion_email_exp = NULL, updated_at = NOW()
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [id_usuario]
+    );
+
+    if (result.affectedRows === 0) {
+      return null;
+    }
+
+    return UsuarioModel.findByIdWithDetails(id_usuario);
+  },
+
+  // Limpia token de verificación sin marcar como verificado (para reintentos)
+  clearVerificationToken: async (id_usuario) => {
+    const [result] = await pool.execute(
+      `UPDATE usuarios
+       SET token_verificacion_email = NULL, token_verificacion_email_exp = NULL, updated_at = NOW()
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [id_usuario]
+    );
+
+    return result.affectedRows > 0;
+  },
 };
