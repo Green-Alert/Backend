@@ -1,18 +1,13 @@
 import nodemailer from 'nodemailer';
+import { getEmailConfig } from '../config/email.config.js';
 
 let cachedTransporter = null;
 
 const getTransporter = () => {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !port || !user || !pass) {
-    throw new Error('SMTP config incompleta.');
-  }
-
   if (!cachedTransporter) {
+    const emailConfig = getEmailConfig();
+    const { host, port, user, pass } = emailConfig;
+    
     cachedTransporter = nodemailer.createTransport({
       host,
       port,
@@ -161,8 +156,11 @@ const generarTemplateBienvenida = (nombre, apellido) => {
 export const enviarCorreo = async (to, subject, html) => {
   try {
     const transporter = getTransporter();
+    const emailConfig = getEmailConfig();
+    const { from } = emailConfig;
+    
     const info = await transporter.sendMail({
-      from: process.env.SMTP_USER,
+      from,
       to,
       subject,
       html,

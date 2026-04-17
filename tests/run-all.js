@@ -13,9 +13,11 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 
 const pattern = process.argv[2] || '';
-const testsDir = path.join(import.meta.url.replace('file:///', ''), '..', 'tests');
+const __filename = fileURLToPath(import.meta.url);
+const testDir = path.dirname(__filename);
 
 const colors = {
   reset: '\x1b[0m',
@@ -32,7 +34,7 @@ const log = {
   warn: (msg) => console.log(`${colors.yellow}${msg}${colors.reset}`),
 };
 
-async function findTestFiles(dir, pattern = '') {
+function findTestFiles(dir, pattern = '') {
   const files = [];
   
   const walkDir = (currentPath) => {
@@ -91,7 +93,6 @@ async function main() {
     log.info(`Pattern: ${pattern}`);
   }
   
-  const testDir = path.dirname(new URL(import.meta.url).pathname);
   const testFiles = findTestFiles(testDir, pattern);
   
   if (testFiles.length === 0) {
