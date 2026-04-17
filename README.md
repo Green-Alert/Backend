@@ -300,19 +300,6 @@ Todas las rutas usan `verifyToken` y `requireRoles('admin')` aplicados en el rou
 | `PATCH` | `/admin/usuarios/:id/estado` | ✅ | Activar o desactivar usuario |
 | `DELETE` | `/admin/usuarios/:id` | ✅ | Eliminar usuario (soft delete) |
 
-### Administracion (`/admin`)
-
-Todas las rutas usan `verifyToken` y `requireRoles('admin')` aplicados en el router.
-
-| Metodo | Ruta | Protegida | Descripcion |
-|--------|------|-----------|-------------|
-| `GET` | `/admin/usuarios/stats` | ✅ | Estadisticas de usuarios y reportes |
-| `GET` | `/admin/usuarios` | ✅ | Listar usuarios con filtros y paginacion |
-| `GET` | `/admin/usuarios/:id` | ✅ | Obtener usuario por id |
-| `PATCH` | `/admin/usuarios/:id/rol` | ✅ | Cambiar rol del usuario |
-| `PATCH` | `/admin/usuarios/:id/estado` | ✅ | Activar o desactivar usuario |
-| `DELETE` | `/admin/usuarios/:id` | ✅ | Eliminar usuario (soft delete) |
-
 ### Health
 
 | Método | Ruta | Protegida | Descripción |
