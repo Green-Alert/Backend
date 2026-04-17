@@ -300,6 +300,19 @@ Todas las rutas usan `verifyToken` y `requireRoles('admin')` aplicados en el rou
 | `PATCH` | `/admin/usuarios/:id/estado` | ✅ | Activar o desactivar usuario |
 | `DELETE` | `/admin/usuarios/:id` | ✅ | Eliminar usuario (soft delete) |
 
+### Administracion (`/admin`)
+
+Todas las rutas usan `verifyToken` y `requireRoles('admin')` aplicados en el router.
+
+| Metodo | Ruta | Protegida | Descripcion |
+|--------|------|-----------|-------------|
+| `GET` | `/admin/usuarios/stats` | ✅ | Estadisticas de usuarios y reportes |
+| `GET` | `/admin/usuarios` | ✅ | Listar usuarios con filtros y paginacion |
+| `GET` | `/admin/usuarios/:id` | ✅ | Obtener usuario por id |
+| `PATCH` | `/admin/usuarios/:id/rol` | ✅ | Cambiar rol del usuario |
+| `PATCH` | `/admin/usuarios/:id/estado` | ✅ | Activar o desactivar usuario |
+| `DELETE` | `/admin/usuarios/:id` | ✅ | Eliminar usuario (soft delete) |
+
 ### Health
 
 | Método | Ruta | Protegida | Descripción |
@@ -337,12 +350,9 @@ Para control de acceso por rol se usa `requireRoles(...)` y debe declararse desp
 - Middleware `requireRoles` para control por rol en rutas protegidas.
 - Modelo de usuario con listados, conteos, cambios de rol/estado y estadisticas para administracion.
 - Controlador y router de administracion con proteccion global de `verifyToken` y `requireRoles('admin')`.
-<<<<<<< HEAD
 - Servicio de correo con Nodemailer y funcion `enviarCorreo`.
 - Flujo de recuperacion de contrasena con tokens de corta expiracion y envio por correo.
-=======
 
->>>>>>> 91b52d2 (Se implemento el servicio de correo email.service.js (Nodemailer))
 ---
 
 ##  Base de Datos
@@ -453,9 +463,6 @@ Este proyecto es parte de un trabajo académico. Ver licencia en el repositorio 
 
 ---
 
-<<<<<<< HEAD
-*** End Patch
-=======
 ##  Cambios Recientes
 
 ### v2.0
@@ -543,7 +550,6 @@ Todos los tipos de contaminación ahora disponibles:
 
 ```javascript
 POST /api/reportes
->>>>>>> 91b52d2 (Se implemento el servicio de correo email.service.js (Nodemailer))
 Content-Type: application/json
 Authorization: Bearer {token}
 
