@@ -93,12 +93,18 @@ export const UsuarioModel = {
        ORDER BY created_at DESC`;
 
     if (limit !== undefined && limit !== null) {
-      query += ' LIMIT ?';
-      params.push(Number(limit));
+      const validLimit = parseInt(limit, 10);
+      if (!Number.isInteger(validLimit) || validLimit < 0) {
+        throw new Error('limit must be a non-negative integer');
+      }
+      query += ` LIMIT ${validLimit}`;
 
       if (offset !== undefined && offset !== null) {
-        query += ' OFFSET ?';
-        params.push(Number(offset));
+        const validOffset = parseInt(offset, 10);
+        if (!Number.isInteger(validOffset) || validOffset < 0) {
+          throw new Error('offset must be a non-negative integer');
+        }
+        query += ` OFFSET ${validOffset}`;
       }
     }
 
