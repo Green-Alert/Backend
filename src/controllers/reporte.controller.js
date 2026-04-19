@@ -139,6 +139,15 @@ export const updateReporte = async (req, res, next) => {
       return errorResponse(res, 'No tienes permiso para editar este reporte.', 403);
     }
 
+    // Owners solo pueden editar reportes en estado 'pendiente'
+    if (isOwner && !isMod && reporte.estado !== 'pendiente') {
+      return errorResponse(
+        res,
+        'No puedes editar un reporte que ya está en revisión o procesado.',
+        403
+      );
+    }
+
     // Owners can edit content fields; mods/admins can also change estado
     const allowed = isOwner
       ? ['titulo', 'descripcion', 'direccion', 'municipio', 'departamento']
@@ -175,6 +184,15 @@ export const deleteReporte = async (req, res, next) => {
 
     if (!isOwner && !isMod) {
       return errorResponse(res, 'No tienes permiso para eliminar este reporte.', 403);
+    }
+
+    // Owners solo pueden eliminar reportes en estado 'pendiente'
+    if (isOwner && !isMod && reporte.estado !== 'pendiente') {
+      return errorResponse(
+        res,
+        'No puedes eliminar un reporte que ya está en revisión o procesado.',
+        403
+      );
     }
 
     await ReporteModel.remove(id);
