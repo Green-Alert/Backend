@@ -450,60 +450,6 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-// ============ HANDLERS PARA VERIFICACIÓN DE EMAIL CON TOKEN ============
-
-export const sendVerificationEmail = async (req, res, next) => {
-  try {
-    const id_usuario = req.user?.sub;
-
-    if (!id_usuario) {
-      return errorResponse(res, 'No autorizado.', 401);
-    }
-
-    const user = await UsuarioModel.findById(id_usuario);
-    if (!user) {
-      return errorResponse(res, 'Usuario no encontrado.', 404);
-    }
-
-    if (user.email_verificado) {
-      return errorResponse(res, 'Tu correo ya esta verificado.', 400);
-    }
-
-    // Generar token de verificación
-    const { rawToken, tokenHash } = buildVerificationToken();
-    const expiresAt = getVerificationTokenExpiration();
-
-    // Guardar token en BD
-    const tokenSaved = await UsuarioModel.setVerificationToken(
-      id_usuario,
-      tokenHash,
-      expiresAt
-    );
-
-    if (!tokenSaved) {
-      return errorResponse(res, 'No fue posible generar el token de verificacion.', 500);
-    }
-
-    // Enviar correo con enlace de verificación
-    enviarCorreoVerificacion(
-      user.email,
-      user.nombre,
-      rawToken
-    ).catch((error) => {
-      console.error('Error al enviar correo de verificacion:', error);
-    });
-
-    return successResponse(
-      res,
-      null,
-      'Correo de verificacion enviado. Por favor revisa tu inbox.',
-      200
-    );
-  } catch (error) {
-    return next(error);
-  }
-};
-
 // ============ HANDLERS PARA VERIFICACIÓN DE EMAIL CON OTP ============
 
 const OTP_MINUTES = 10;
@@ -604,53 +550,6 @@ export const sendVerificationOtp = async (req, res, next) => {
   }
 };
 
-export const verifyEmail = async (req, res, next) => {
-  try {
-    const { token } = req.query ?? {};
-
-    if (!token || typeof token !== 'string') {
-      return errorResponse(res, 'Token de verificacion requerido.', 400);
-    }
-
-    // Hash del token recibido
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    // Buscar usuario por token
-    const user = await UsuarioModel.findByVerificationToken(tokenHash);
-    if (!user) {
-      return errorResponse(res, 'Token invalido.', 400);
-    }
-
-    // Verificar si ya está verificado
-    if (user.email_verificado) {
-      return errorResponse(res, 'Este correo ya fue verificado anteriormente.', 400);
-    }
-
-    // Verificar expiración del token
-    const expiresAt = new Date(user.token_verificacion_email_exp);
-    if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now()) {
-      // Limpiar token expirado
-      await UsuarioModel.clearVerificationToken(user.id_usuario);
-      return errorResponse(res, 'El token de verificacion ha expirado. Solicita uno nuevo iniciando sesion.', 400);
-    }
-
-    // Marcar email como verificado
-    const verifiedUser = await UsuarioModel.markEmailAsVerified(user.id_usuario);
-    if (!verifiedUser) {
-      return errorResponse(res, 'No fue posible verificar el correo.', 500);
-    }
-
-    return successResponse(
-      res,
-      { user: toPublicUser(verifiedUser) },
-      'Correo verificado correctamente. Tu cuenta esta completamente activada.',
-      200
-    );
-  } catch (error) {
-    return next(error);
-  }
-};
-
 // Verifica el OTP y marca el email como verificado
 export const verifyEmailOtp = async (req, res, next) => {
   try {
@@ -686,8 +585,8 @@ export const verifyEmailOtp = async (req, res, next) => {
     }
 
     // Verificar expiración
-    const otpExpiresAt = new Date(userWithOtp.otp_exp).getTime();
-    if (Number.isNaN(otpExpiresAt) || otpExpiresAt < Date.now()) {
+    const expiresAt = new Date(userWithOtp.otp_exp).getTime();
+    if (Number.isNaN(expiresAt) || expiresAt < Date.now()) {
       await UsuarioModel.clearOtp(id_usuario);
       return errorResponse(res, 'El código OTP ha expirado. Solicita uno nuevo.', 400);
     }
@@ -704,7 +603,7 @@ export const verifyEmailOtp = async (req, res, next) => {
 
     // Marcar email como verificado
     await UsuarioModel.verifyEmail(id_usuario);
-
+    
     // Limpiar OTP
     await UsuarioModel.clearOtp(id_usuario);
 

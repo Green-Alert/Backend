@@ -10,8 +10,6 @@ import {
 	changePassword,
 	sendVerificationOtp,
 	verifyEmailOtp,
-	sendVerificationEmail,
-	verifyEmail,
 } from '../src/controllers/auth.controller.js';
 
 const authRouter = Router();
