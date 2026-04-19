@@ -129,6 +129,47 @@ export const register = async (req, res, next) => {
       return errorResponse(res, 'No fue posible recuperar el usuario recien creado.', 500);
     }
 
+    // Generar y enviar OTP automáticamente después del registro
+    try {
+      const otpCode = generateOtpCode();
+      const otpCodeHash = hashOtpCode(otpCode);
+      const otpExp = new Date(Date.now() + OTP_MINUTES * 60 * 1000);
+
+      // Guardar OTP hasheado en BD
+      await UsuarioModel.setOtp(idUsuario, otpCodeHash, otpExp);
+      await UsuarioModel.updateOtpLastRequest(idUsuario);
+
+      // Generar plantilla HTML del email
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333; text-align: center;">¡Bienvenido a Green Alert!</h2>
+          <p style="color: #666; font-size: 16px;">Hola ${createdUser.nombre},</p>
+          <p style="color: #666; font-size: 16px;">Tu cuenta ha sido creada correctamente. Por favor verifica tu correo electrónico para completar el registro.</p>
+          
+          <div style="background-color: #f5f5f5; border: 2px solid #007bff; border-radius: 8px; padding: 30px; margin: 30px 0; text-align: center;">
+            <p style="color: #999; font-size: 14px; margin: 0 0 15px 0;">Tu código de verificación:</p>
+            <h1 style="color: #007bff; font-size: 48px; letter-spacing: 10px; margin: 0;">${otpCode}</h1>
+            <p style="color: #999; font-size: 14px; margin: 15px 0 0 0;">Este código expira en ${OTP_MINUTES} minutos</p>
+          </div>
+          
+          <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <p style="color: #856404; margin: 0; font-size: 14px;">
+              <strong>⚠️ Seguridad:</strong> Nunca compartas este código con nadie. El equipo de Green Alert nunca te pedirá este código.
+            </p>
+          </div>
+          
+          <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+            Si no creaste esta cuenta, por favor ignora este correo.
+          </p>
+        </div>
+      `;
+
+      await enviarCorreo(createdUser.email, 'Verifica tu Correo - Green Alert', html);
+    } catch (emailError) {
+      console.error('Error enviando OTP en registro:', emailError);
+      // No fallar el registro si falla el email, pero loguear el error
+    }
+
     const token = buildToken(createdUser);
 
     // Enviar correo de bienvenida de forma no-bloqueante (fire-and-forget)
@@ -145,8 +186,9 @@ export const register = async (req, res, next) => {
       {
         token,
         user: toPublicUser(createdUser),
+        pendingEmailVerification: true,
       },
-      'Cuenta creada correctamente.',
+      'Cuenta creada correctamente. Verifica tu email con el código enviado.',
       201
     );
   } catch (error) {
@@ -408,7 +450,24 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-export const sendVerificationEmail = async (req, res, next) => {
+// ============ HANDLERS PARA VERIFICACIÓN DE EMAIL CON OTP ============
+
+const OTP_MINUTES = 10;
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
+const MAX_OTP_ATTEMPTS = 5;
+
+// Genera un código OTP de 6 dígitos aleatorio
+const generateOtpCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Hashea el código OTP con SHA-256
+const hashOtpCode = (otpCode) => {
+  return crypto.createHash('sha256').update(otpCode).digest('hex');
+};
+
+// Envía OTP por correo electrónico
+export const sendVerificationOtp = async (req, res, next) => {
   try {
     const id_usuario = req.user?.sub;
 
@@ -421,38 +480,69 @@ export const sendVerificationEmail = async (req, res, next) => {
       return errorResponse(res, 'Usuario no encontrado.', 404);
     }
 
+    // Si email ya está verificado, retorna 409
     if (user.email_verificado) {
-      return errorResponse(res, 'Tu correo ya esta verificado.', 400);
+      return errorResponse(res, 'El email ya está verificado.', 409);
     }
 
-    // Generar token de verificación
-    const { rawToken, tokenHash } = buildVerificationToken();
-    const expiresAt = getVerificationTokenExpiration();
-
-    // Guardar token en BD
-    const tokenSaved = await UsuarioModel.setVerificationToken(
-      id_usuario,
-      tokenHash,
-      expiresAt
-    );
-
-    if (!tokenSaved) {
-      return errorResponse(res, 'No fue posible generar el token de verificacion.', 500);
+    // Verificar cooldown de 1 minuto entre reenvíos
+    const lastRequest = await UsuarioModel.getOtpLastRequest(id_usuario);
+    if (lastRequest) {
+      const lastRequestTime = new Date(lastRequest).getTime();
+      const timeDiffSeconds = (Date.now() - lastRequestTime) / 1000;
+      if (timeDiffSeconds < OTP_RESEND_COOLDOWN_SECONDS) {
+        const remainingSeconds = Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - timeDiffSeconds);
+        return errorResponse(
+          res,
+          `Por favor espera ${remainingSeconds} segundos antes de solicitar otro código.`,
+          429
+        );
+      }
     }
 
-    // Enviar correo con enlace de verificación
-    enviarCorreoVerificacion(
-      user.email,
-      user.nombre,
-      rawToken
-    ).catch((error) => {
-      console.error('Error al enviar correo de verificacion:', error);
-    });
+    // Generar OTP
+    const otpCode = generateOtpCode();
+    const otpCodeHash = hashOtpCode(otpCode);
+    const otpExp = new Date(Date.now() + OTP_MINUTES * 60 * 1000);
+
+    // Guardar OTP hasheado en BD
+    await UsuarioModel.setOtp(id_usuario, otpCodeHash, otpExp);
+    await UsuarioModel.updateOtpLastRequest(id_usuario);
+
+    // Generar plantilla HTML del email
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #333; text-align: center;">Verifica tu Correo Electrónico</h2>
+        <p style="color: #666; font-size: 16px;">Hola ${user.nombre},</p>
+        <p style="color: #666; font-size: 16px;">Se ha solicitado la verificación de tu correo electrónico en <strong>Green Alert</strong>.</p>
+        
+        <div style="background-color: #f5f5f5; border: 2px solid #007bff; border-radius: 8px; padding: 30px; margin: 30px 0; text-align: center;">
+          <p style="color: #999; font-size: 14px; margin: 0 0 15px 0;">Tu código de verificación:</p>
+          <h1 style="color: #007bff; font-size: 48px; letter-spacing: 10px; margin: 0;">${otpCode}</h1>
+          <p style="color: #999; font-size: 14px; margin: 15px 0 0 0;">Este código expira en ${OTP_MINUTES} minutos</p>
+        </div>
+        
+        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>⚠️ Seguridad:</strong> Nunca compartas este código con nadie. El equipo de Green Alert nunca te pedirá este código.
+          </p>
+        </div>
+        
+        <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+          Si no solicitaste este código, por favor ignora este correo.
+        </p>
+      </div>
+    `;
+
+    await enviarCorreo(user.email, 'Código de Verificación de Correo - Green Alert', html);
 
     return successResponse(
       res,
-      null,
-      'Correo de verificacion enviado. Por favor revisa tu inbox.',
+      {
+        message: `Código de verificación enviado a ${user.email}`,
+        expiresIn: OTP_MINUTES * 60,
+      },
+      'Código OTP enviado correctamente.',
       200
     );
   } catch (error) {
@@ -460,46 +550,69 @@ export const sendVerificationEmail = async (req, res, next) => {
   }
 };
 
-export const verifyEmail = async (req, res, next) => {
+// Verifica el OTP y marca el email como verificado
+export const verifyEmailOtp = async (req, res, next) => {
   try {
-    const { token } = req.query ?? {};
+    const id_usuario = req.user?.sub;
 
-    if (!token || typeof token !== 'string') {
-      return errorResponse(res, 'Token de verificacion requerido.', 400);
+    if (!id_usuario) {
+      return errorResponse(res, 'No autorizado.', 401);
     }
 
-    // Hash del token recibido
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const { otp_code } = req.body ?? {};
 
-    // Buscar usuario por token
-    const user = await UsuarioModel.findByVerificationToken(tokenHash);
+    if (typeof otp_code !== 'string' || otp_code.length !== 6 || !/^\d{6}$/.test(otp_code)) {
+      return errorResponse(res, 'El código OTP debe ser un número de 6 dígitos.', 400);
+    }
+
+    const user = await UsuarioModel.findById(id_usuario);
     if (!user) {
-      return errorResponse(res, 'Token invalido.', 400);
+      return errorResponse(res, 'Usuario no encontrado.', 404);
     }
 
-    // Verificar si ya está verificado
+    // Si email ya está verificado, retorna 409
     if (user.email_verificado) {
-      return errorResponse(res, 'Este correo ya fue verificado anteriormente.', 400);
+      return errorResponse(res, 'El email ya está verificado.', 409);
     }
 
-    // Verificar expiración del token
-    const expiresAt = new Date(user.token_verificacion_email_exp);
-    if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now()) {
-      // Limpiar token expirado
-      await UsuarioModel.clearVerificationToken(user.id_usuario);
-      return errorResponse(res, 'El token de verificacion ha expirado. Solicita uno nuevo iniciando sesion.', 400);
+    // Verificar si hay un OTP pendiente
+    const otpCodeHash = hashOtpCode(otp_code);
+    const userWithOtp = await UsuarioModel.findByOtpHash(otpCodeHash);
+
+    if (!userWithOtp || Number(userWithOtp.id_usuario) !== Number(id_usuario)) {
+      await UsuarioModel.incrementOtpAttempts(id_usuario);
+      return errorResponse(res, 'Código OTP incorrecto.', 400);
+    }
+
+    // Verificar expiración
+    const expiresAt = new Date(userWithOtp.otp_exp).getTime();
+    if (Number.isNaN(expiresAt) || expiresAt < Date.now()) {
+      await UsuarioModel.clearOtp(id_usuario);
+      return errorResponse(res, 'El código OTP ha expirado. Solicita uno nuevo.', 400);
+    }
+
+    // Verificar intentos fallidos
+    if (userWithOtp.otp_attempts >= MAX_OTP_ATTEMPTS) {
+      await UsuarioModel.clearOtp(id_usuario);
+      return errorResponse(
+        res,
+        'Demasiados intentos fallidos. Se ha generado un nuevo código. Solicítalo nuevamente.',
+        429
+      );
     }
 
     // Marcar email como verificado
-    const verifiedUser = await UsuarioModel.markEmailAsVerified(user.id_usuario);
-    if (!verifiedUser) {
-      return errorResponse(res, 'No fue posible verificar el correo.', 500);
-    }
+    await UsuarioModel.verifyEmail(id_usuario);
+    
+    // Limpiar OTP
+    await UsuarioModel.clearOtp(id_usuario);
+
+    const verifiedUser = await UsuarioModel.findByIdWithDetails(id_usuario);
 
     return successResponse(
       res,
       { user: toPublicUser(verifiedUser) },
-      'Correo verificado correctamente. Tu cuenta esta completamente activada.',
+      'Email verificado correctamente.',
       200
     );
   } catch (error) {
