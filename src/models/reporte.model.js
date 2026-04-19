@@ -196,6 +196,17 @@ export const ReporteModel = {
     return result.affectedRows > 0;
   },
 
+  // Cuenta total de reportes de un usuario específico
+  countByUsuario: async (id_usuario) => {
+    const [[row]] = await pool.execute(
+      `SELECT COUNT(*) AS total
+       FROM reportes
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [id_usuario]
+    );
+    return row?.total ?? 0;
+  },
+
   // Estadísticas globales para Dashboard y Home
   getStats: async () => {
     const [[r]] = await pool.execute(
