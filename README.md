@@ -124,11 +124,12 @@ JWT_EXPIRES_IN=7d
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760
 
-# Email (opcional para futuro)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=tu_email@gmail.com
-SMTP_PASS=tu_app_password
+# Email Configuration (Centralizado)
+EMAIL_HOST=smtp.mailtrap.io
+EMAIL_PORT=587
+EMAIL_USER=tu_usuario@mailtrap.io
+EMAIL_PASS=tu_password
+EMAIL_FROM=noreply@greenalert.com
 
 # Frontend
 FRONTEND_URL=http://localhost:5173
@@ -138,11 +139,58 @@ FRONTEND_URL=http://localhost:5173
 
 Se incluye archivo `env.example` con variables requeridas como referencia.
 
-### Servicio de correo
+### Configuración Centralizada de Email
 
-Se agrego el servicio `src/services/email.service.js` para envio de correos con Nodemailer.
-Usa las variables `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` y expone `enviarCorreo(to, subject, html)`.
-Para recuperacion de contrasena se usa `FRONTEND_URL` para construir el enlace.
+#### ✓ Ubicación
+- **Config centralizado:** `src/config/email.config.js`
+- **Servicio Email:** `src/services/email.service.js`
+- **Variables requeridas:** `.env` (ver sección anterior)
+
+#### ✓ Variables de Entorno
+
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `EMAIL_HOST` | Host del servidor SMTP | `smtp.mailtrap.io` |
+| `EMAIL_PORT` | Puerto SMTP | `587` |
+| `EMAIL_USER` | Usuario SMTP | `usuario@mailtrap.io` |
+| `EMAIL_PASS` | Contraseña SMTP | `password123` |
+| `EMAIL_FROM` | Email remitente | `noreply@greenalert.com` |
+
+#### ✓ Validación Automática
+
+El servidor valida automáticamente la configuración de email al iniciar:
+
+```bash
+✓ Configuración de email validada correctamente
+```
+
+Si falta alguna variable, mostrará error:
+
+```bash
+✗ Error en configuración de email: Variables de entorno para Email no configuradas: EMAIL_HOST, EMAIL_PASS
+```
+
+#### ✓ Uso en Código
+
+```javascript
+// NO hacer esto (hardcodeado ❌)
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  auth: { user: "email@gmail.com", pass: "password" }
+});
+
+// Hacer esto (centralizado ✅)
+import emailConfig from './config/email.config.js';
+const { host, port, user, pass } = emailConfig;
+```
+
+#### ✓ Seguridad
+
+- ✅ Nunca subir credenciales reales al repositorio
+- ✅ Usar `.env.example` con valores de ejemplo
+- ✅ Validación automática al iniciar servidor
+- ✅ Variables centralizadas en `email.config.js`
+- ✅ Formato de email validado (EMAIL_FROM)
 
 ---
 
@@ -337,12 +385,9 @@ Para control de acceso por rol se usa `requireRoles(...)` y debe declararse desp
 - Middleware `requireRoles` para control por rol en rutas protegidas.
 - Modelo de usuario con listados, conteos, cambios de rol/estado y estadisticas para administracion.
 - Controlador y router de administracion con proteccion global de `verifyToken` y `requireRoles('admin')`.
-<<<<<<< HEAD
 - Servicio de correo con Nodemailer y funcion `enviarCorreo`.
 - Flujo de recuperacion de contrasena con tokens de corta expiracion y envio por correo.
-=======
 
->>>>>>> 91b52d2 (Se implemento el servicio de correo email.service.js (Nodemailer))
 ---
 
 ##  Base de Datos
@@ -453,9 +498,6 @@ Este proyecto es parte de un trabajo académico. Ver licencia en el repositorio 
 
 ---
 
-<<<<<<< HEAD
-*** End Patch
-=======
 ##  Cambios Recientes
 
 ### v2.0
@@ -543,7 +585,6 @@ Todos los tipos de contaminación ahora disponibles:
 
 ```javascript
 POST /api/reportes
->>>>>>> 91b52d2 (Se implemento el servicio de correo email.service.js (Nodemailer))
 Content-Type: application/json
 Authorization: Bearer {token}
 
