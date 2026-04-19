@@ -148,10 +148,10 @@ export const updateReporte = async (req, res, next) => {
       );
     }
 
-    // Owners can edit content fields; mods/admins can also change estado
+    // Owners can edit content fields; mods/admins can also change estado y comentario_moderacion
     const allowed = isOwner
       ? ['titulo', 'descripcion', 'direccion', 'municipio', 'departamento']
-      : ['estado', 'nivel_severidad', 'titulo', 'descripcion', 'direccion', 'municipio', 'departamento'];
+      : ['estado', 'nivel_severidad', 'titulo', 'descripcion', 'direccion', 'municipio', 'departamento', 'comentario_moderacion'];
 
     const campos = {};
     for (const key of allowed) {
@@ -162,6 +162,14 @@ export const updateReporte = async (req, res, next) => {
 
     if (Object.keys(campos).length === 0) {
       return errorResponse(res, 'No se enviaron campos válidos para actualizar.', 400);
+    }
+
+    // Validar que comentario_moderacion es obligatorio si se rechaza
+    if (isMod && campos.estado === 'rechazado') {
+      const comentario = campos.comentario_moderacion?.trim();
+      if (!comentario) {
+        return errorResponse(res, 'El comentario es obligatorio al rechazar un reporte.', 400);
+      }
     }
 
     await ReporteModel.update(id, campos);

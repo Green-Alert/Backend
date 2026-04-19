@@ -65,6 +65,7 @@ export const ReporteModel = {
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
               r.ia_etiquetas, r.ia_confianza, r.ia_procesado,
               r.votos_relevancia, r.vistas,
+              r.comentario_moderacion,
               r.created_at, r.updated_at
        FROM reportes r
        WHERE r.id_reporte = ? AND r.deleted_at IS NULL
@@ -146,7 +147,7 @@ export const ReporteModel = {
   update: async (id_reporte, campos) => {
     const permitidos = [
       'estado', 'nivel_severidad', 'titulo', 'descripcion',
-      'direccion', 'municipio', 'departamento',
+      'direccion', 'municipio', 'departamento', 'comentario_moderacion',
     ];
 
     const sets = [];
