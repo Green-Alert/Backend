@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { randomUUID } from 'crypto';
 
 export const ReporteModel = {
   
@@ -109,19 +110,21 @@ export const ReporteModel = {
     municipio = null,
     departamento = null,
   }) => {
+    const uuid = randomUUID();
     const hasCoords = latitud !== null && latitud !== undefined &&
                       longitud !== null && longitud !== undefined;
 
     if (hasCoords) {
       const [result] = await pool.execute(
         `INSERT INTO reportes
-           (id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+           (uuid, id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
             latitud, longitud, direccion, municipio, departamento, punto_geo)
          VALUES
-           (?, ?, ?, ?, ?,
+           (?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ST_GeomFromText(CONCAT('POINT(', ?, ' ', ?, ')'), 4326))`,
         [
+          uuid,
           id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
           latitud, longitud, direccion, municipio, departamento,
           longitud, latitud,
@@ -131,10 +134,11 @@ export const ReporteModel = {
     } else {
       const [result] = await pool.execute(
         `INSERT INTO reportes
-           (id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+           (uuid, id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
             latitud, longitud, direccion, municipio, departamento)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid,
+         id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
          null, null, direccion, municipio, departamento]
       );
       return result.insertId;
@@ -219,5 +223,14 @@ export const ReporteModel = {
       `SELECT COUNT(*) AS total_usuarios FROM usuarios WHERE activo=1 AND deleted_at IS NULL`
     );
     return { ...r, ...u };
+  },
+
+  // Cuenta el total de reportes creados por un usuario
+  countByUsuario: async (id_usuario) => {
+    const [[row]] = await pool.execute(
+      `SELECT COUNT(*) AS total FROM reportes WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [id_usuario]
+    );
+    return row?.total ?? 0;
   },
 };

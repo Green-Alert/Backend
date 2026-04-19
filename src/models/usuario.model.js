@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { randomUUID } from 'crypto';
 
 export const UsuarioModel = {
 
@@ -147,10 +148,11 @@ export const UsuarioModel = {
    //Crea un nuevo usuario.
    
   create: async ({ nombre, apellido, email, password_hash, rol = 'ciudadano', telefono = null }) => {
+    const uuid = randomUUID();
     const [result] = await pool.execute(
-      `INSERT INTO usuarios (nombre, apellido, email, password_hash, rol, telefono)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [nombre, apellido, email, password_hash, rol, telefono]
+      `INSERT INTO usuarios (uuid, nombre, apellido, email, password_hash, rol, telefono)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [uuid, nombre, apellido, email, password_hash, rol, telefono]
     );
     return result.insertId;
   },

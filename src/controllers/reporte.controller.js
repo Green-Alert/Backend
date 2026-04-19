@@ -125,6 +125,27 @@ export const getStats = async (req, res, next) => {
   }
 };
 
+export const getMisReportes = async (req, res, next) => {
+  try {
+    if (!req.user || !req.user.sub) {
+      return errorResponse(res, 'No autorizado', 401);
+    }
+
+    const id_usuario = req.user.sub;
+    const { limit = 20, offset = 0 } = req.query;
+    
+    const reportes = await ReporteModel.findByUsuario(id_usuario, {
+      limit: Number(limit),
+      offset: Number(offset),
+    });
+    const total = await ReporteModel.countByUsuario(id_usuario);
+    
+    return successResponse(res, { reportes, total });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const updateReporte = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
