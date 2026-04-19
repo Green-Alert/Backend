@@ -88,6 +88,34 @@ export const getReportes = async (req, res, next) => {
   }
 };
 
+export const getMisReportes = async (req, res, next) => {
+  try {
+    const id_usuario = req.user?.sub;
+
+    if (!id_usuario) {
+      return errorResponse(res, 'No autorizado.', 401);
+    }
+
+    const { limit = 20, offset = 0 } = req.query;
+
+    const reportes = await ReporteModel.findByUsuario(id_usuario, {
+      limit: Number(limit),
+      offset: Number(offset),
+    });
+
+    const total = await ReporteModel.countByUsuario(id_usuario);
+
+    return successResponse(
+      res,
+      { reportes, total },
+      'Reportes del usuario obtenidos correctamente.',
+      200
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const getStats = async (req, res, next) => {
   try {
     const stats = await ReporteModel.getStats();
