@@ -299,6 +299,10 @@ POST /api/auth/login
 AUTENTICACIÓN CON GOOGLE OAUTH:
 
 ```
+GET /api/auth/google/url
+  Retorna: { authUrl }
+  Descripción: Genera la URL de autenticación con Google. El frontend redirige al usuario a esta URL
+
 POST /api/auth/google/login
   Body: { id_token }  (ID token obtenido del cliente)
   Retorna: { token, user }
@@ -362,16 +366,17 @@ Frontend -> Google Sign-In Button -> id_token -> POST /api/auth/google/login -> 
 
 #### Flujo 2: Authorization Code
 
-1. Frontend: Redirige a Google OAuth consent screen
-2. Usuario autoriza
-3. Google redirige a `/api/auth/google/callback?code=...`
-4. Backend intercambia código por tokens
-5. Backend obtiene info del usuario
-6. Backend crea/actualiza usuario
-7. Backend redirige al frontend con JWT
+1. Frontend: Realiza GET a `/api/auth/google/url` para obtener la URL de autenticación
+2. Frontend: Redirige al usuario a la URL de Google
+3. Usuario autoriza en Google
+4. Google redirige a `/api/auth/google/callback?code=...`
+5. Backend intercambia código por tokens
+6. Backend obtiene info del usuario
+7. Backend crea/actualiza usuario
+8. Backend redirige al frontend con JWT
 
 ```
-Frontend -> Google OAuth -> code -> /api/auth/google/callback -> JWT (en URL)
+Frontend -> GET /api/auth/google/url -> URL -> Google OAuth -> code -> /api/auth/google/callback -> JWT (en URL)
 ```
 
 ### Datos del Usuario desde Google

@@ -13,6 +13,7 @@ import {
 	updateNotifications,
 	googleLogin,
 	googleCallback,
+	getGoogleAuthUrl,
 } from '../src/controllers/auth.controller.js';
 
 const authRouter = Router();
@@ -31,6 +32,7 @@ authRouter.post('/enviar-verificacion', verifyToken, sendVerificationOtp);
 authRouter.post('/verificar-email', verifyToken, verifyEmailOtp);
 
 // Rutas para autenticación con Google OAuth
+authRouter.get('/google/url', getGoogleAuthUrl);
 authRouter.post('/google/login', googleLogin);
 authRouter.get('/google/callback', googleCallback);
 

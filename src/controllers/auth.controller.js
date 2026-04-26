@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { UsuarioModel } from '../models/usuario.model.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { enviarCorreo, enviarCorreoBienvenida, enviarCorreoVerificacion } from '../services/email.service.js';
-import { verifyGoogleToken, exchangeCodeForTokens, getGoogleUserInfo } from '../services/google-oauth.service.js';
+import { verifyGoogleToken, exchangeCodeForTokens, getGoogleUserInfo, generateAuthUrl } from '../services/google-oauth.service.js';
 import {
   validarNombreUsuario,
   validarTelefono,
@@ -805,6 +805,25 @@ export const googleCallback = async (req, res, next) => {
     const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(toPublicUser(user)))}`;
 
     return res.redirect(redirectUrl);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getGoogleAuthUrl = async (req, res, next) => {
+  try {
+    const result = generateAuthUrl();
+
+    if (!result.success) {
+      return errorResponse(res, 'No fue posible generar la URL de autenticación de Google.', 500);
+    }
+
+    return successResponse(
+      res,
+      { authUrl: result.authUrl },
+      'URL de autenticación generada exitosamente.',
+      200
+    );
   } catch (error) {
     return next(error);
   }

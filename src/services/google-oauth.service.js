@@ -92,3 +92,30 @@ export const getGoogleUserInfo = async (accessToken) => {
     };
   }
 };
+
+export const generateAuthUrl = () => {
+  try {
+    const client = getOAuthClient();
+    const scopes = [
+      'openid',
+      'email',
+      'profile',
+    ];
+
+    const authUrl = client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'consent',
+    });
+
+    return {
+      success: true,
+      authUrl,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
