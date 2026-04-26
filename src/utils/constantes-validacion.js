@@ -15,10 +15,8 @@ export const TIPOS_CONTAMINACION = {
   SUELO: 'suelo',
   RUIDO: 'ruido',
   RESIDUOS: 'residuos',
-  LUMINICA: 'luminica',
   DEFORESTACION: 'deforestacion',
   INCENDIOS_FORESTALES: 'incendios_forestales',
-  DESLIZAMIENTOS: 'deslizamientos',
   AVALANCHAS_FLUVIOTORRENCIALES: 'avalanchas_fluviotorrenciales',
   OTRO: 'otro'
 };
@@ -102,35 +100,6 @@ export const CONFIGURACION_CATEGORIAS = {
     ejemploDescripcion: 'Columna de humo visible desde varios puntos. Fuego se propaga hacia el norte. Riesgo para viviendas a 500 metros...'
   },
 
-  [TIPOS_CONTAMINACION.DESLIZAMIENTOS]: {
-    nombre: 'Deslizamientos',
-    descripcion: 'Movimientos en masa del terreno',
-    icono: 'alertTriangle',
-    color: '#F97316',
-    severidadPorDefecto: NIVELES_SEVERIDAD.ALTO,
-    severidadesPermitidas: [
-      NIVELES_SEVERIDAD.MEDIO,
-      NIVELES_SEVERIDAD.ALTO,
-      NIVELES_SEVERIDAD.CRITICO
-    ],
-    camposRequeridos: [
-      'titulo',
-      'descripcion',
-      'direccion',
-      'municipio',
-      'latitud',
-      'longitud'
-    ],
-    sugerencias: [
-      'Indicar si la vía está bloqueada',
-      'Estimar volumen de material desplazado',
-      'Mencionar si continúa o está estabilizado',
-      'Incluir riesgo para viviendas/infraestructura'
-    ],
-    ejemploTitulo: 'Deslizamiento en vía principal',
-    ejemploDescripcion: 'Deslizamiento que obstruye completamente la vía. Aproximadamente 200 m³ de tierra. Continúa en movimiento lentamente...'
-  },
-
   [TIPOS_CONTAMINACION.AVALANCHAS_FLUVIOTORRENCIALES]: {
     nombre: 'Avalanchas Fluviotorrenciales',
     descripcion: 'Crecidas súbitas de ríos, quebradas o arroyos',
@@ -202,15 +171,6 @@ export const CONFIGURACION_CATEGORIAS = {
     icono: 'trash2',
     color: '#EF4444',
     severidadPorDefecto: NIVELES_SEVERIDAD.MEDIO,
-    severidadesPermitidas: Object.values(NIVELES_SEVERIDAD)
-  },
-
-  [TIPOS_CONTAMINACION.LUMINICA]: {
-    nombre: 'Contaminación Luminosa',
-    descripcion: 'Exceso de iluminación artificial',
-    icono: 'lightbulb',
-    color: '#FBBF24',
-    severidadPorDefecto: NIVELES_SEVERIDAD.BAJO,
     severidadesPermitidas: Object.values(NIVELES_SEVERIDAD)
   },
 
