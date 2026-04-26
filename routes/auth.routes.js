@@ -11,6 +11,8 @@ import {
 	sendVerificationOtp,
 	verifyEmailOtp,
 	updateNotifications,
+	googleLogin,
+	googleCallback,
 } from '../src/controllers/auth.controller.js';
 
 const authRouter = Router();
@@ -27,5 +29,9 @@ authRouter.patch('/notificaciones', verifyToken, updateNotifications);
 // Rutas para verificación de email con OTP
 authRouter.post('/enviar-verificacion', verifyToken, sendVerificationOtp);
 authRouter.post('/verificar-email', verifyToken, verifyEmailOtp);
+
+// Rutas para autenticación con Google OAuth
+authRouter.post('/google/login', googleLogin);
+authRouter.get('/google/callback', googleCallback);
 
 export default authRouter;
