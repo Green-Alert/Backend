@@ -29,7 +29,8 @@ API REST para la plataforma de monitoreo ambiental ciudadano GreenAlert. Constru
 | **Framework** | Express.js |
 | **Base de Datos** | MySQL 8.0+ |
 | **Driver MySQL** | mysql2/promise |
-| **Autenticación** | JWT (JSON Web Tokens) |
+| **Autenticación JWT** | jsonwebtoken |
+| **Autenticación OAuth** | google-auth-library |
 | **Hash de Contraseña** | crypto (scrypt) |
 | **Variables de Entorno** | dotenv |
 | **Desarrollo** | Nodemon |
