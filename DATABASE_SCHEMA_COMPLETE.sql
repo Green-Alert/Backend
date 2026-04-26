@@ -195,7 +195,6 @@ INSERT IGNORE INTO categorias_riesgo
 (id_categoria, codigo, nombre, descripcion, icono, color_hex, nivel_prioridad_default, activo) 
 VALUES 
 (1, 'inundacion', 'Inundación', 'Riesgo de inundación o anegamiento', '🌊', '#0066FF', 3, TRUE),
-(2, 'deslizamiento', 'Deslizamiento', 'Riesgo de deslizamiento de tierra', '⛰️', '#FF6600', 2, TRUE),
 (3, 'incendio', 'Incendio', 'Riesgo de incendio forestal o urbano', '🔥', '#FF0000', 1, TRUE),
 (4, 'contaminacion_aire', 'Contaminación de Aire', 'Contaminación atmosférica', '💨', '#9933FF', 2, TRUE),
 (5, 'contaminacion_agua', 'Contaminación de Agua', 'Contaminación de ríos, lagos o acuíferos', '💧', '#3399FF', 2, TRUE),
