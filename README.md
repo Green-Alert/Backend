@@ -29,7 +29,8 @@ API REST para la plataforma de monitoreo ambiental ciudadano GreenAlert. Constru
 | **Framework** | Express.js |
 | **Base de Datos** | MySQL 8.0+ |
 | **Driver MySQL** | mysql2/promise |
-| **Autenticación** | JWT (JSON Web Tokens) |
+| **Autenticación JWT** | jsonwebtoken |
+| **Autenticación OAuth** | google-auth-library |
 | **Hash de Contraseña** | crypto (scrypt) |
 | **Variables de Entorno** | dotenv |
 | **Desarrollo** | Nodemon |
@@ -191,6 +192,256 @@ const { host, port, user, pass } = emailConfig;
 - [GOOD] Validación automática al iniciar servidor
 - [GOOD] Variables centralizadas en `email.config.js`
 - [GOOD] Formato de email validado (EMAIL_FROM)
+
+### [OAUTH] Configuración de Google OAuth 2.0
+
+#### [CONFIG] Variables de Entorno
+
+Agrega estas variables a tu `.env` para habilitar autenticación con Google:
+
+```env
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your_client_id_here.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your_client_secret_here
+GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+```
+
+#### [CONFIG] Paso 1: Obtener Credenciales
+
+Debes obtener las credenciales reales de Google Cloud Console:
+
+**Opción A: Guía Completa (Recomendado)**
+- Lee: [`GOOGLE_OAUTH_SETUP.md`](../GOOGLE_OAUTH_SETUP.md)
+- Contiene pasos detallados con capturas mentales
+- Toma ~15 minutos
+
+**Opción B: Resumen Rápido**
+1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
+2. Crea un nuevo proyecto -> Completa nombre y acepta términos
+3. Busca "Google+ API" en la biblioteca -> Click "Habilitar"
+4. Ve a "Credenciales" -> Click "+ Crear credenciales"
+5. Selecciona "Aplicación web" -> Completa nombre
+6. URIs de redireccionamiento: `http://localhost:3000/api/auth/google/callback`
+7. Click "Crear" -> Copia Client ID y Secret
+
+#### [CONFIG] Paso 2: Configurar .env
+
+Copia los valores obtenidos:
+
+```bash
+# En archivo Backend/.env
+GOOGLE_CLIENT_ID=xxxxxxxxxxxxxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+#### [CONFIG] Paso 3: Validar Configuración
+
+Ejecuta el script de validación:
+
+```bash
+node validate-google-credentials.js
+```
+
+**Salida esperada:**
+```
+[OK] GOOGLE_CLIENT_ID: xxxxxxxx...
+[OK] GOOGLE_CLIENT_SECRET: GOCSPX-xx...
+[OK] Configuración cargada exitosamente
+
+[SUCCESS] TODAS LAS VALIDACIONES PASARON
+```
+
+Si hay errores:
+```
+[ERROR] GOOGLE_CLIENT_ID: NO CONFIGURADO
+[ERROR] Error: Variables de entorno para Google OAuth no configuradas...
+```
+-> Revisa que los valores en `.env` sean correctos y reinicia
+
+#### [CONFIG] Ubicación de Configuración
+
+- **Config centralizado:** `src/config/google.config.js`
+- **Script de validación:** `validate-google-credentials.js`
+- **Variables requeridas:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- **Optional:** `GOOGLE_CALLBACK_URL` (default: `http://localhost:3000/api/auth/google/callback`)
+
+#### [CONFIG] Validación Automática
+
+El servidor valida automáticamente la configuración al iniciar:
+
+```bash
+npm run dev
+
+# Salida:
+[OK] Google OAuth configuration loaded successfully
+```
+
+Si faltan credenciales:
+
+```bash
+⚠ Google OAuth not yet configured: Variables de entorno para Google OAuth no configuradas...
+```
+
+#### [CONFIG] Endpoints de Autenticación
+
+AUTENTICACIÓN TRADICIONAL:
+
+```
+POST /api/auth/register
+  Body: { nombre, apellido, email, password, telefono? }
+  Retorna: { token, user }
+
+POST /api/auth/login
+  Body: { email, password }
+  Retorna: { token, user }
+```
+
+AUTENTICACIÓN CON GOOGLE OAUTH:
+
+```
+GET /api/auth/google/url
+  Retorna: { authUrl }
+  Descripción: Genera la URL de autenticación con Google. El frontend redirige al usuario a esta URL
+
+POST /api/auth/google/login
+  Body: { id_token }  (ID token obtenido del cliente)
+  Retorna: { token, user }
+  Descripción: Verifica el id_token de Google y autentica al usuario
+
+GET /api/auth/google/callback?code=...
+  Parámetros: code (código de autorización de Google)
+  Retorna: Redirige al frontend con token y usuario
+  Descripción: Callback para el flujo Authorization Code de Google
+```
+
+GESTIÓN DE CUENTA:
+
+```
+GET /api/auth/perfil (requiere JWT)
+  Retorna: { user }
+
+PATCH /api/auth/perfil (requiere JWT)
+  Body: { nombre?, apellido?, telefono?, avatar_url? }
+  Retorna: { user }
+
+PATCH /api/auth/cambiar-contrasena (requiere JWT)
+  Body: { old_password, new_password }
+  Retorna: { message }
+
+POST /api/auth/forgot-password
+  Body: { email }
+  Retorna: { message }
+
+POST /api/auth/reset-password
+  Body: { token, new_password }
+  Retorna: { message }
+
+POST /api/auth/enviar-verificacion (requiere JWT)
+  Retorna: { message, expiresIn }
+
+POST /api/auth/verificar-email (requiere JWT)
+  Body: { otp_code }
+  Retorna: { user }
+```
+
+---
+
+## Autenticación Social: Google OAuth 2.0
+
+### Flujo de Autenticación
+
+El backend soporta dos flujos de Google OAuth:
+
+#### Flujo 1: ID Token (Recomendado para SPAs)
+
+1. Frontend: Usa Google Sign-In Button
+2. Google devuelve `id_token` al cliente
+3. Cliente envía POST a `/api/auth/google/login` con `id_token`
+4. Backend verifica el token y crea/actualiza usuario
+5. Backend retorna JWT de GreenAlert
+
+```
+Frontend -> Google Sign-In Button -> id_token -> POST /api/auth/google/login -> JWT
+```
+
+#### Flujo 2: Authorization Code
+
+1. Frontend: Realiza GET a `/api/auth/google/url` para obtener la URL de autenticación
+2. Frontend: Redirige al usuario a la URL de Google
+3. Usuario autoriza en Google
+4. Google redirige a `/api/auth/google/callback?code=...`
+5. Backend intercambia código por tokens
+6. Backend obtiene info del usuario
+7. Backend crea/actualiza usuario
+8. Backend redirige al frontend con JWT
+
+```
+Frontend -> GET /api/auth/google/url -> URL -> Google OAuth -> code -> /api/auth/google/callback -> JWT (en URL)
+```
+
+### Datos del Usuario desde Google
+
+Cuando un usuario se autentica con Google, GreenAlert:
+
+- Extrae: `google_id`, `email`, `nombre`, `apellido`, `avatar_url`
+- Crea nuevo usuario si no existe con ese email
+- Marca email como verificado automáticamente
+- Guarda `google_id` para vincular en futuros logins
+- Retorna JWT válido por 7 días
+
+### Integración Frontend
+
+```javascript
+// Usando Google Sign-In Button
+const handleGoogleSignIn = async (credentialResponse) => {
+  const response = await fetch('/api/auth/google/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: credentialResponse.credential }),
+  });
+  
+  const { token, user } = await response.json();
+  
+  // Guardar JWT y usuario
+  localStorage.setItem('token', token);
+  localStorage.setItem('user', JSON.stringify(user));
+};
+```
+
+### Seguridad
+
+- Tokens de Google se verifican en servidor
+- Email se marca como verificado automáticamente
+- google_id se guarda para rastrear origen de autenticación
+- Tokens JWT tienen expiración de 7 días
+- Contraseñas no son requeridas para cuentas de Google
+
+  Retorna: JWT token + user info
+```
+
+#### [CONFIG] Uso en Código
+
+```javascript
+// Usar configuración en controladores
+import { getGoogleConfig } from '../config/google.config.js';
+
+export const googleLogin = async (req, res) => {
+  try {
+    const config = getGoogleConfig();
+    // Usar config.clientId, config.clientSecret, config.callbackUrl
+  } catch (error) {
+    res.status(500).json({ error: 'Google OAuth not configured' });
+  }
+};
+```
+
+#### [CONFIG] Seguridad
+
+- [GOOD] Credenciales almacenadas en `.env` (nunca en código)
+- [GOOD] Client Secret nunca debe exponerse al frontend
+- [GOOD] Callback URL debe coincidir exactamente con Google Cloud
+- [GOOD] Usar HTTPS en producción
+- [GOOD] Validación automática previene inicios sin configuración
 
 ---
 
@@ -517,10 +768,13 @@ Este proyecto es parte de un trabajo académico. Ver licencia en el repositorio 
 
 **Última actualización**: March 28, 2026
 |-----------|--------|-----------|-------------|
-| 🌲 Deforestación | `deforestacion` | Alto | Tala o pérdida de cobertura forestal |
+| 🌲 Tala ilegal | `deforestacion` | Alto | Tala o pérdida de cobertura forestal |
 | 🔥 Incendios Forestales | `incendios_forestales` | Crítico | Fuegos descontrolados en bosques |
-| ⚠️ Deslizamientos | `deslizamientos` | Alto | Movimientos en masa del terreno |
 | 💧 Avalanchas Fluviotorrenciales | `avalanchas_fluviotorrenciales` | Crítico | Crecidas súbitas de ríos/quebradas |
+| 💧 Contaminación de Agua | `agua` | Alto | Contaminación del recurso hídrico |
+| 💨 Contaminación del Aire | `aire` | Medio | Presencia de contaminantes atmosféricos |
+| 🗑 Residuos | `residuos` | Medio | Acumulación o disposición incorrecta de basura |
+| 🌙 Contaminación Sonora | `ruido` | Bajo | Exceso de ruido ambiental |
 
 ### Archivos Nuevos
 
@@ -589,9 +843,9 @@ Content-Type: application/json
 Authorization: Bearer {token}
 
 {
-  "tipo_contaminacion": "deforestacion",  // agua, aire, suelo, ruido, residuos, luminica, 
+  "tipo_contaminacion": "deforestacion",  // agua, aire, suelo, ruido, residuos, 
                                             // deforestacion, incendios_forestales, 
-                                            // deslizamientos, avalanchas_fluviotorrenciales, otro
+                                            // avalanchas_fluviotorrenciales, otro
   "nivel_severidad": "alto",              // bajo, medio, alto, critico
   "titulo": "Tala masiva en sector X",
   "descripcion": "Descripción detallada del problema...",

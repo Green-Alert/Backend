@@ -18,10 +18,11 @@
 CREATE TABLE IF NOT EXISTS usuarios (
   id_usuario INT AUTO_INCREMENT PRIMARY KEY,
   uuid VARCHAR(36) UNIQUE NOT NULL,
+  google_id VARCHAR(255) UNIQUE NULL,
   nombre VARCHAR(100) NOT NULL,
   apellido VARCHAR(100) NOT NULL,
   email VARCHAR(100) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NULL,
   rol ENUM('ciudadano', 'moderador', 'admin') DEFAULT 'ciudadano',
   activo BOOLEAN DEFAULT TRUE,
   email_verificado BOOLEAN DEFAULT FALSE,
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- Indexes
   INDEX idx_email (email),
   INDEX idx_uuid (uuid),
+  INDEX idx_google_id (google_id),
   INDEX idx_otp_code_hash (otp_code_hash),
   INDEX idx_otp_exp (otp_exp),
   INDEX idx_deleted_at (deleted_at),
@@ -195,7 +197,6 @@ INSERT IGNORE INTO categorias_riesgo
 (id_categoria, codigo, nombre, descripcion, icono, color_hex, nivel_prioridad_default, activo) 
 VALUES 
 (1, 'inundacion', 'Inundación', 'Riesgo de inundación o anegamiento', '🌊', '#0066FF', 3, TRUE),
-(2, 'deslizamiento', 'Deslizamiento', 'Riesgo de deslizamiento de tierra', '⛰️', '#FF6600', 2, TRUE),
 (3, 'incendio', 'Incendio', 'Riesgo de incendio forestal o urbano', '🔥', '#FF0000', 1, TRUE),
 (4, 'contaminacion_aire', 'Contaminación de Aire', 'Contaminación atmosférica', '💨', '#9933FF', 2, TRUE),
 (5, 'contaminacion_agua', 'Contaminación de Agua', 'Contaminación de ríos, lagos o acuíferos', '💧', '#3399FF', 2, TRUE),

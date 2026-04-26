@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { UsuarioModel } from '../models/usuario.model.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { enviarCorreo, enviarCorreoBienvenida, enviarCorreoVerificacion } from '../services/email.service.js';
+import { verifyGoogleToken, exchangeCodeForTokens, getGoogleUserInfo, generateAuthUrl } from '../services/google-oauth.service.js';
 import {
   validarNombreUsuario,
   validarTelefono,
@@ -642,6 +643,185 @@ export const updateNotifications = async (req, res, next) => {
       res,
       { preferences: validatedPreferences },
       'Preferencias de notificaciones actualizadas.',
+      200
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// ============ MÉTODOS PARA AUTENTICACIÓN CON GOOGLE OAUTH ============
+
+export const googleLogin = async (req, res, next) => {
+  try {
+    const { id_token } = req.body ?? {};
+
+    if (!id_token || typeof id_token !== 'string') {
+      return errorResponse(res, 'El id_token de Google es requerido.', 400);
+    }
+
+    // Verificar token de Google
+    const googleVerification = await verifyGoogleToken(id_token);
+    if (!googleVerification.success) {
+      return errorResponse(res, 'Token de Google inválido.', 401);
+    }
+
+    const {
+      googleId,
+      email,
+      nombre,
+      apellido,
+      avatar_url,
+      email_verified,
+    } = googleVerification;
+
+    // Buscar usuario existente por email o googleId
+    let user = await UsuarioModel.findByEmail(email);
+
+    if (user) {
+      // Usuario existe con email, actualizar googleId si no lo tiene
+      if (!user.google_id && googleId) {
+        await UsuarioModel.updateGoogleId(user.id_usuario, googleId);
+      }
+      // Actualizar último acceso
+      await UsuarioModel.updateUltimoAcceso(user.id_usuario);
+    } else {
+      // Crear nuevo usuario desde Google
+      const idUsuario = await UsuarioModel.createFromGoogle({
+        google_id: googleId,
+        email,
+        nombre: nombre || '',
+        apellido: apellido || '',
+        avatar_url,
+      });
+
+      if (!idUsuario) {
+        return errorResponse(res, 'No fue posible crear la cuenta con este correo.', 400);
+      }
+
+      user = await UsuarioModel.findById(idUsuario);
+    }
+
+    if (!user) {
+      return errorResponse(res, 'Error al procesar la autenticación con Google.', 500);
+    }
+
+    // Generar JWT
+    const token = buildToken(user);
+
+    return successResponse(
+      res,
+      { 
+        token,
+        user: toPublicUser(user),
+      },
+      'Autenticación con Google exitosa.',
+      200
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const googleCallback = async (req, res, next) => {
+  try {
+    const { code } = req.query ?? {};
+
+    if (!code || typeof code !== 'string') {
+      return errorResponse(res, 'Código de autorización de Google requerido.', 400);
+    }
+
+    // Intercambiar código por tokens
+    const tokenExchange = await exchangeCodeForTokens(code);
+    if (!tokenExchange.success) {
+      return errorResponse(res, 'No fue posible intercambiar el código de Google.', 400);
+    }
+
+    const { tokens } = tokenExchange;
+    const { id_token, access_token } = tokens;
+
+    if (!id_token && !access_token) {
+      return errorResponse(res, 'No se recibieron tokens de Google.', 400);
+    }
+
+    // Obtener información del usuario
+    let googleUser;
+    
+    if (id_token) {
+      const verification = await verifyGoogleToken(id_token);
+      if (!verification.success) {
+        return errorResponse(res, 'Token de Google inválido.', 401);
+      }
+      googleUser = verification;
+    } else {
+      const userInfo = await getGoogleUserInfo(access_token);
+      if (!userInfo.success) {
+        return errorResponse(res, 'No fue posible obtener información de Google.', 400);
+      }
+      googleUser = userInfo;
+    }
+
+    const {
+      googleId,
+      email,
+      nombre,
+      apellido,
+      avatar_url,
+    } = googleUser;
+
+    // Buscar o crear usuario
+    let user = await UsuarioModel.findByEmail(email);
+
+    if (user) {
+      if (!user.google_id && googleId) {
+        await UsuarioModel.updateGoogleId(user.id_usuario, googleId);
+      }
+      await UsuarioModel.updateUltimoAcceso(user.id_usuario);
+    } else {
+      const idUsuario = await UsuarioModel.createFromGoogle({
+        google_id: googleId,
+        email,
+        nombre: nombre || '',
+        apellido: apellido || '',
+        avatar_url,
+      });
+
+      if (!idUsuario) {
+        return errorResponse(res, 'No fue posible crear la cuenta con este correo.', 400);
+      }
+
+      user = await UsuarioModel.findById(idUsuario);
+    }
+
+    if (!user) {
+      return errorResponse(res, 'Error al procesar la autenticación con Google.', 500);
+    }
+
+    // Generar JWT
+    const token = buildToken(user);
+
+    // Redirigir al frontend con el token
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(toPublicUser(user)))}`;
+
+    return res.redirect(redirectUrl);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getGoogleAuthUrl = async (req, res, next) => {
+  try {
+    const result = generateAuthUrl();
+
+    if (!result.success) {
+      return errorResponse(res, 'No fue posible generar la URL de autenticación de Google.', 500);
+    }
+
+    return successResponse(
+      res,
+      { authUrl: result.authUrl },
+      'URL de autenticación generada exitosamente.',
       200
     );
   } catch (error) {
