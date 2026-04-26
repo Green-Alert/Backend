@@ -517,10 +517,13 @@ Este proyecto es parte de un trabajo académico. Ver licencia en el repositorio 
 
 **Última actualización**: March 28, 2026
 |-----------|--------|-----------|-------------|
-| 🌲 Deforestación | `deforestacion` | Alto | Tala o pérdida de cobertura forestal |
+| 🌲 Tala ilegal | `deforestacion` | Alto | Tala o pérdida de cobertura forestal |
 | 🔥 Incendios Forestales | `incendios_forestales` | Crítico | Fuegos descontrolados en bosques |
-| ⚠️ Deslizamientos | `deslizamientos` | Alto | Movimientos en masa del terreno |
 | 💧 Avalanchas Fluviotorrenciales | `avalanchas_fluviotorrenciales` | Crítico | Crecidas súbitas de ríos/quebradas |
+| 💧 Contaminación de Agua | `agua` | Alto | Contaminación del recurso hídrico |
+| 💨 Contaminación del Aire | `aire` | Medio | Presencia de contaminantes atmosféricos |
+| 🗑 Residuos | `residuos` | Medio | Acumulación o disposición incorrecta de basura |
+| 🌙 Contaminación Sonora | `ruido` | Bajo | Exceso de ruido ambiental |
 
 ### Archivos Nuevos
 
@@ -589,9 +592,9 @@ Content-Type: application/json
 Authorization: Bearer {token}
 
 {
-  "tipo_contaminacion": "deforestacion",  // agua, aire, suelo, ruido, residuos, luminica, 
+  "tipo_contaminacion": "deforestacion",  // agua, aire, suelo, ruido, residuos, 
                                             // deforestacion, incendios_forestales, 
-                                            // deslizamientos, avalanchas_fluviotorrenciales, otro
+                                            // avalanchas_fluviotorrenciales, otro
   "nivel_severidad": "alto",              // bajo, medio, alto, critico
   "titulo": "Tala masiva en sector X",
   "descripcion": "Descripción detallada del problema...",
