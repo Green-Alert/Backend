@@ -382,4 +382,49 @@ export const UsuarioModel = {
     );
     return result.affectedRows > 0;
   },
+
+  // ============ MÉTODOS PARA GOOGLE OAUTH ============
+
+  // Busca usuario por google_id
+  findByGoogleId: async (google_id) => {
+    const [rows] = await pool.execute(
+      `SELECT ${UsuarioModel._publicUserFields}
+       FROM usuarios
+       WHERE google_id = ? AND deleted_at IS NULL
+       LIMIT 1`,
+      [google_id]
+    );
+    return rows[0] ?? null;
+  },
+
+  // Crea usuario desde Google OAuth
+  createFromGoogle: async ({ google_id, email, nombre, apellido, avatar_url }) => {
+    const uuid = randomUUID();
+    
+    try {
+      const [result] = await pool.execute(
+        `INSERT INTO usuarios (uuid, google_id, email, nombre, apellido, avatar_url, rol, email_verificado)
+         VALUES (?, ?, ?, ?, ?, ?, 'ciudadano', 1)`,
+        [uuid, google_id, email, nombre, apellido, avatar_url]
+      );
+      return result.insertId;
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        // Email ya existe, retornar null
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  // Actualiza google_id de usuario existente
+  updateGoogleId: async (id_usuario, google_id) => {
+    const [result] = await pool.execute(
+      `UPDATE usuarios
+       SET google_id = ?, updated_at = NOW()
+       WHERE id_usuario = ? AND deleted_at IS NULL`,
+      [google_id, id_usuario]
+    );
+    return result.affectedRows > 0;
+  },
 };
