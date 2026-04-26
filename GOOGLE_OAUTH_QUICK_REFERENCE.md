@@ -1,7 +1,7 @@
-📋 QUICK REFERENCE: Google OAuth Setup
+QUICK REFERENCE: Google OAuth Setup
 =====================================
 
-✅ CHECKLIST RÁPIDO
+OK CHECKLIST RÁPIDO
 
 - [ ] Crear proyecto en Google Cloud Console
 - [ ] Habilitar Google+ API
@@ -12,7 +12,7 @@
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔧 VARIABLES REQUERIDAS EN .env
+VARIABLES REQUERIDAS EN .env
 
 GOOGLE_CLIENT_ID=xxxxxxxxxxxxxxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx
@@ -20,7 +20,7 @@ GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📖 DOCUMENTACIÓN COMPLETA
+DOCUMENTACIÓN COMPLETA
 
 Ver: ../GOOGLE_OAUTH_SETUP.md
 
@@ -33,18 +33,18 @@ Para instrucciones paso a paso sobre cómo:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🧪 VALIDAR CONFIGURACIÓN
+VALIDAR CONFIGURACIÓN
 
 1. Asegúrate que Backend/.env contiene las 3 variables
 2. Ejecuta: npm run dev
-3. Deberías ver: ✓ Google OAuth configuration loaded successfully
+3. Deberías ver: [OK] Google OAuth configuration loaded successfully
 
-Si ves advertencia: ⚠ Google OAuth not yet configured
-  → Completa las variables en .env y reinicia
+Si ves advertencia: [AVISO] Google OAuth not yet configured
+  -> Completa las variables en .env y reinicia
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📁 ARCHIVOS RELACIONADOS
+ARCHIVOS RELACIONADOS
 
 Backend/src/config/google.config.js
   ↳ Configuración centralizada y validación
@@ -57,7 +57,7 @@ Backend/README.md (sección "Configuración de Google OAuth")
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ IMPORTANTE
+IMPORTANTE
 
 - NUNCA commitees Backend/.env con credenciales reales
 - Solo GOOGLE_CLIENT_ID puede ser público
@@ -66,7 +66,7 @@ Backend/README.md (sección "Configuración de Google OAuth")
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💡 NEXT STEPS
+NEXT STEPS
 
 1. Completar credenciales de Google en Backend/.env
 2. Implementar endpoints en Backend/routes/auth.routes.js:
