@@ -192,6 +192,89 @@ const { host, port, user, pass } = emailConfig;
 - [GOOD] Variables centralizadas en `email.config.js`
 - [GOOD] Formato de email validado (EMAIL_FROM)
 
+### 🔐 Configuración de Google OAuth 2.0
+
+#### [CONFIG] Variables de Entorno
+
+Agrega estas variables a tu `.env` para habilitar autenticación con Google:
+
+```env
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your_client_id_here.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your_client_secret_here
+GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+```
+
+#### [CONFIG] Obtener Credenciales
+
+Sigue la **guía completa** en: [`GOOGLE_OAUTH_SETUP.md`](../GOOGLE_OAUTH_SETUP.md)
+
+**Resumen rápido:**
+1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
+2. Crea un nuevo proyecto
+3. Habilita "Google+ API"
+4. Configura pantalla de consentimiento OAuth
+5. Crea credenciales (Client ID y Secret)
+6. Copia los valores a `.env`
+
+#### [CONFIG] Ubicación de Configuración
+
+- **Config centralizado:** `src/config/google.config.js`
+- **Validación automática:** Al iniciar servidor
+- **Variables requeridas:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+
+#### [CONFIG] Validación Automática
+
+El servidor valida automáticamente la configuración al iniciar:
+
+```bash
+✓ Google OAuth configuration loaded successfully
+```
+
+Si faltan credenciales, mostrará advertencia con instrucciones:
+
+```bash
+⚠ Google OAuth not yet configured: Variables de entorno para Google OAuth no configuradas...
+```
+
+#### [CONFIG] Endpoints de Autenticación
+
+```javascript
+// OAuth callback (implementación pendiente)
+GET /api/auth/google/callback
+  Parámetros: code (authorization code from Google)
+  Retorna: JWT token + user info
+
+// Google login (implementación pendiente)
+POST /api/auth/google/login
+  Body: { token: google_access_token }
+  Retorna: JWT token + user info
+```
+
+#### [CONFIG] Uso en Código
+
+```javascript
+// Usar configuración en controladores
+import { getGoogleConfig } from '../config/google.config.js';
+
+export const googleLogin = async (req, res) => {
+  try {
+    const config = getGoogleConfig();
+    // Usar config.clientId, config.clientSecret, config.callbackUrl
+  } catch (error) {
+    res.status(500).json({ error: 'Google OAuth not configured' });
+  }
+};
+```
+
+#### [CONFIG] Seguridad
+
+- [GOOD] Credenciales almacenadas en `.env` (nunca en código)
+- [GOOD] Client Secret nunca debe exponerse al frontend
+- [GOOD] Callback URL debe coincidir exactamente con Google Cloud
+- [GOOD] Usar HTTPS en producción
+- [GOOD] Validación automática previene inicios sin configuración
+
 ---
 
 ##  Ejecución
