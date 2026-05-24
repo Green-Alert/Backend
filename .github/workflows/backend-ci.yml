@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   backend-validation:
@@ -18,21 +21,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
- 
-
-      - name: Cache npm
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json', 'package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
- 
           cache: npm
- 
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Validate JavaScript syntax
         run: |

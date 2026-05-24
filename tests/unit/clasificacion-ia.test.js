@@ -8,6 +8,7 @@ import { analizarImagen, createReporte } from '../../src/controllers/reporte.con
 import { CategoriaRiesgoModel } from '../../src/models/categoria-riesgo.model.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
 import { normalizeReporteIA, ReporteModel } from '../../src/models/reporte.model.js';
+import { AsignacionEntidadesService } from '../../src/services/asignacion-entidades.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const testsDir = path.dirname(__filename);
@@ -51,6 +52,7 @@ const mockReporteCreate = (t) => {
   }));
   t.mock.method(ReporteModel, 'updateIaAnalysis', async () => true);
   t.mock.method(EvidenciaModel, 'create', async () => 1);
+  t.mock.method(AsignacionEntidadesService, 'asignarEntidadesAReporte', async () => []);
 };
 
 test('clasificarImagen devuelve contrato esperado con fallback deterministico', async () => {

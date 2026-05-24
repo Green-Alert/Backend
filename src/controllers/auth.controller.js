@@ -74,6 +74,7 @@ const validateGeneratedToken = (token, secret, user) => {
     Number(decoded.sub) !== Number(user.id_usuario) ||
     decoded.email !== user.email ||
     decoded.rol !== user.rol ||
+    (user.id_entidad && Number(decoded.id_entidad) !== Number(user.id_entidad)) ||
     (user.uuid && decoded.uuid !== user.uuid)
   ) {
     const error = new Error('JWT generado no coincide con el usuario autenticado');
@@ -93,6 +94,7 @@ const buildToken = (user) => {
       sub: user.id_usuario,
       uuid: user.uuid,
       rol: user.rol,
+      id_entidad: user.id_entidad ?? null,
       email: user.email,
     },
     secret,
@@ -161,6 +163,7 @@ const toPublicUser = (user) => ({
   apellido: user.apellido,
   email: user.email,
   rol: user.rol,
+  id_entidad: user.id_entidad ?? null,
   activo: user.activo,
   email_verificado: user.email_verificado,
   avatar_url: user.avatar_url,

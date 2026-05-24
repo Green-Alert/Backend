@@ -12,9 +12,27 @@
 -- DROP TABLE IF EXISTS reporte_likes;
 -- DROP TABLE IF EXISTS refresh_tokens;
 -- DROP TABLE IF EXISTS evidencias;
+-- DROP TABLE IF EXISTS reporte_entidades;
 -- DROP TABLE IF EXISTS reportes;
 -- DROP TABLE IF EXISTS categorias_riesgo;
 -- DROP TABLE IF EXISTS usuarios;
+-- DROP TABLE IF EXISTS entidades;
+
+-- ============================================================================
+-- TABLE: entidades
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS entidades (
+  id_entidad INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(120) NOT NULL,
+  codigo VARCHAR(60) NOT NULL UNIQUE,
+  descripcion TEXT NULL,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+
+  INDEX idx_entidades_codigo (codigo),
+  INDEX idx_entidades_activo (activo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
 -- TABLE: usuarios
@@ -28,7 +46,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   apellido VARCHAR(100) NOT NULL,
   email VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NULL,
-  rol ENUM('ciudadano', 'moderador', 'admin') DEFAULT 'ciudadano',
+  rol ENUM('ciudadano', 'moderador', 'admin', 'entidad') DEFAULT 'ciudadano',
+  id_entidad INT NULL,
   activo BOOLEAN DEFAULT TRUE,
   email_verificado BOOLEAN DEFAULT FALSE,
   avatar_url VARCHAR(255) NULL,
@@ -57,7 +76,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
   INDEX idx_otp_code_hash (otp_code_hash),
   INDEX idx_otp_exp (otp_exp),
   INDEX idx_deleted_at (deleted_at),
-  INDEX idx_rol (rol)
+  INDEX idx_rol (rol),
+  INDEX idx_usuarios_id_entidad (id_entidad),
+  CONSTRAINT fk_usuarios_entidad FOREIGN KEY (id_entidad)
+    REFERENCES entidades(id_entidad) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -129,6 +151,34 @@ CREATE TABLE IF NOT EXISTS reportes (
   INDEX idx_reportes_tipo_created_at (tipo_contaminacion, created_at),
   INDEX idx_reportes_latitud_longitud (latitud, longitud),
   SPATIAL INDEX idx_punto_geo (punto_geo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- TABLE: reporte_entidades
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS reporte_entidades (
+  id_reporte_entidad BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id_reporte BIGINT UNSIGNED NOT NULL,
+  id_entidad INT NOT NULL,
+  tipo_asignacion ENUM('principal', 'apoyo') NOT NULL DEFAULT 'principal',
+  prioridad ENUM('baja', 'media', 'alta', 'critica') NOT NULL DEFAULT 'media',
+  estado_atencion ENUM('pendiente', 'en_atencion', 'atendido', 'cerrado') NOT NULL DEFAULT 'pendiente',
+  comentario TEXT NULL,
+  asignado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  actualizado_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_reporte_entidades_reporte FOREIGN KEY (id_reporte)
+    REFERENCES reportes(id_reporte) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_reporte_entidades_entidad FOREIGN KEY (id_entidad)
+    REFERENCES entidades(id_entidad) ON DELETE CASCADE ON UPDATE CASCADE,
+
+  UNIQUE KEY unique_reporte_entidad (id_reporte, id_entidad),
+  INDEX idx_reporte_entidades_reporte (id_reporte),
+  INDEX idx_reporte_entidades_entidad (id_entidad),
+  INDEX idx_reporte_entidades_tipo (tipo_asignacion),
+  INDEX idx_reporte_entidades_prioridad (prioridad),
+  INDEX idx_reporte_entidades_estado_atencion (estado_atencion),
+  INDEX idx_reporte_entidades_asignado_at (asignado_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -236,7 +286,7 @@ CREATE TABLE IF NOT EXISTS notificaciones (
   id_notificacion BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   uuid VARCHAR(36) UNIQUE NOT NULL,
   id_usuario BIGINT UNSIGNED NOT NULL,
-  tipo ENUM('reporte_estado', 'reporte_comentario', 'reporte_creado', 'alerta_zona', 'sistema') NOT NULL,
+  tipo ENUM('reporte_estado', 'reporte_comentario', 'reporte_creado', 'reporte_asignado_entidad', 'alerta_zona', 'sistema') NOT NULL,
   titulo VARCHAR(150) NOT NULL,
   mensaje TEXT NOT NULL,
   referencia_tipo VARCHAR(30) NULL,
@@ -314,6 +364,15 @@ GROUP BY r.id_reporte, r.uuid, r.titulo, r.estado, r.municipio;
 -- ============================================================================
 -- SEED DATA (Sample categories)
 -- ============================================================================
+
+INSERT IGNORE INTO entidades
+(nombre, codigo, descripcion)
+VALUES
+('Bomberos', 'bomberos', 'Entidad encargada de la atencion de incendios, quemas activas, emergencias, explosiones, derrames peligrosos y materiales inflamables.'),
+('Corpoamazonia', 'corpoamazonia', 'Autoridad ambiental regional encargada de contaminacion ambiental, vertimientos, tala ilegal, deforestacion, fauna, flora, mineria ilegal y afectaciones a ecosistemas.'),
+('Gestion del Riesgo', 'gestion_riesgo', 'Entidad encargada de amenazas, emergencias, desastres naturales, avalanchas, deslizamientos, inundaciones, crecientes subitas, derrames graves y eventos criticos.'),
+('Secretaria de Salud', 'secretaria_salud', 'Entidad encargada de riesgos sanitarios, basuras con afectacion a la salud publica, aguas residuales, malos olores, residuos hospitalarios y proliferacion de vectores.'),
+('Alcaldia / Servicios Publicos', 'alcaldia_servicios_publicos', 'Entidad encargada de la atencion operativa de residuos urbanos, basura en via publica, escombros, alcantarillado, espacio publico y mantenimiento municipal.');
 
 INSERT IGNORE INTO categorias_riesgo 
 (id_categoria, codigo, nombre, descripcion, icono, color_hex, nivel_prioridad_default, activo) 

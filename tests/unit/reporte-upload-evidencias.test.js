@@ -5,6 +5,7 @@ import { createReporte } from '../../src/controllers/reporte.controller.js';
 import { CategoriaRiesgoModel } from '../../src/models/categoria-riesgo.model.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
+import { AsignacionEntidadesService } from '../../src/services/asignacion-entidades.service.js';
 
 const createResponse = () => ({
   statusCode: null,
@@ -57,6 +58,7 @@ const mockSuccessfulCreate = (t) => {
   }));
   t.mock.method(ReporteModel, 'updateIaAnalysis', async () => true);
   t.mock.method(EvidenciaModel, 'create', async () => 1);
+  t.mock.method(AsignacionEntidadesService, 'asignarEntidadesAReporte', async () => []);
 };
 
 test('createReporte guarda multiples imagenes con metadata y orden', async (t) => {

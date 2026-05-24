@@ -24,6 +24,7 @@ test('app monta todos los routers principales sin prefijo interno obligatorio', 
     '${apiPrefix}/admin',
     '${apiPrefix}/chatbot',
     '${apiPrefix}/notificaciones',
+    '${apiPrefix}/entidades',
   ]) {
     assert.ok(source.includes(`app.use(\`${mount}\``), mount);
   }
@@ -38,6 +39,7 @@ test('rutas consumidas por el cliente estan declaradas en backend', async () => 
     adminRouter: await read('routes/admin.routes.js'),
     chatbotRouter: await read('routes/chatbot.routes.js'),
     notificacionRouter: await read('routes/notificacion.routes.js'),
+    entidadRouter: await read('routes/entidad.routes.js'),
   };
 
   const expectedRoutes = [
@@ -88,6 +90,10 @@ test('rutas consumidas por el cliente estan declaradas en backend', async () => 
     { router: 'notificacionRouter', method: 'patch', route: '/:uuid/leida' },
     { router: 'notificacionRouter', method: 'patch', route: '/marcar-todas' },
     { router: 'notificacionRouter', method: 'delete', route: '/:uuid' },
+    { router: 'entidadRouter', method: 'get', route: '/' },
+    { router: 'entidadRouter', method: 'get', route: '/mis-reportes' },
+    { router: 'entidadRouter', method: 'get', route: '/mis-reportes/:id' },
+    { router: 'entidadRouter', method: 'patch', route: '/mis-reportes/:id/atencion' },
   ];
 
   for (const expected of expectedRoutes) {
@@ -103,11 +109,16 @@ test('rutas privadas y administrativas declaran middleware de autenticacion y ro
   const adminRoutes = await read('routes/admin.routes.js');
   const categoriaRoutes = await read('routes/categoria-riesgo.routes.js');
   const notificacionRoutes = await read('routes/notificacion.routes.js');
+  const entidadRoutes = await read('routes/entidad.routes.js');
   const reporteRoutes = await read('routes/reporte.routes.js');
   const authRoutes = await read('routes/auth.routes.js');
 
   assert.match(adminRoutes, /adminRouter\.use\(verifyToken,\s*requireRoles\('admin'\)\)/);
   assert.match(notificacionRoutes, /notificacionRouter\.use\(verifyToken\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\('\/',\s*verifyToken,\s*requireRoles\('admin', 'moderador', 'entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\('\/mis-reportes',\s*verifyToken,\s*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-reportes\/:id'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-reportes\/:id\/atencion'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
 
   assert.match(categoriaRoutes, /categoriaRouter\.post\('\/',\s*verifyToken,\s*requireRoles\('admin'\)/);
   assert.match(categoriaRoutes, /categoriaRouter\.patch\('\/:codigo',\s*verifyToken,\s*requireRoles\('admin'\)/);

@@ -12,21 +12,38 @@ export const NotificacionModel = {
     link = null,
   }) => {
     const uuid = randomUUID();
-    const [result] = await pool.execute(
-      `INSERT INTO notificaciones
-         (uuid, id_usuario, tipo, titulo, mensaje, referencia_tipo, referencia_uuid, link)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        uuid,
-        id_usuario,
-        tipo,
-        titulo,
-        mensaje,
-        referencia_tipo,
-        referencia_uuid,
-        link,
-      ]
-    );
+    const params = [
+      uuid,
+      id_usuario,
+      tipo,
+      titulo,
+      mensaje,
+      referencia_tipo,
+      referencia_uuid,
+      link,
+    ];
+    let result;
+
+    try {
+      [result] = await pool.execute(
+        `INSERT INTO notificaciones
+           (uuid, id_usuario, tipo, titulo, mensaje, referencia_tipo, referencia_uuid, link)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        params
+      );
+    } catch (error) {
+      if (tipo === 'reporte_asignado_entidad') {
+        params[2] = 'sistema';
+        [result] = await pool.execute(
+          `INSERT INTO notificaciones
+             (uuid, id_usuario, tipo, titulo, mensaje, referencia_tipo, referencia_uuid, link)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          params
+        );
+      } else {
+        throw error;
+      }
+    }
 
     return { id_notificacion: result.insertId, uuid };
   },

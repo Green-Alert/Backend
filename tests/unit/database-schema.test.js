@@ -17,8 +17,10 @@ test('schema completo incluye tablas de soporte requeridas por el backend', asyn
 
   for (const table of [
     'usuarios',
+    'entidades',
     'categorias_riesgo',
     'reportes',
+    'reporte_entidades',
     'evidencias',
     'refresh_tokens',
     'reporte_likes',
@@ -36,6 +38,8 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
   for (const column of [
     'google_id VARCHAR(255) UNIQUE NULL',
     'facebook_id VARCHAR(255) UNIQUE NULL',
+    "rol ENUM('ciudadano', 'moderador', 'admin', 'entidad')",
+    'id_entidad INT NULL',
     'notification_preferences JSON NULL',
     'avatar_url VARCHAR(255) NULL',
     'email_verificado BOOLEAN DEFAULT FALSE',
@@ -47,6 +51,9 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
     'ia_confianza DECIMAL(5, 2) NULL',
     'ia_procesado BOOLEAN DEFAULT FALSE',
     'token_hash CHAR(64) NOT NULL',
+    "tipo_asignacion ENUM('principal', 'apoyo')",
+    "estado_atencion ENUM('pendiente', 'en_atencion', 'atendido', 'cerrado')",
+    "tipo ENUM('reporte_estado', 'reporte_comentario', 'reporte_creado', 'reporte_asignado_entidad', 'alerta_zona', 'sistema')",
   ]) {
     assert.ok(schema.includes(column), column);
   }
@@ -71,4 +78,5 @@ test('migraciones no tienen numeracion duplicada ni scripts sueltos de notificac
   assert.deepEqual(duplicateNumbers, []);
   assert.equal(files.includes('create_notificaciones.sql'), false);
   assert.equal(files.includes('012_create_notificaciones.sql'), true);
+  assert.equal(files.includes('014_create_entidades_and_reporte_entidades.sql'), true);
 });
