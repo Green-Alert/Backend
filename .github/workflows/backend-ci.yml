@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Link Frontend directory for contract tests
+        run: ln -s "$(pwd)/Frontend" ../Frontend
+
       - name: Validate JavaScript syntax
         run: |
           find . \
