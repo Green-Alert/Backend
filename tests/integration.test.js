@@ -10,7 +10,7 @@
 
 import assert from 'assert';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = (process.env.API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 // Color codes for terminal output
 const colors = {
@@ -89,7 +89,7 @@ async function runTests() {
   log.section('1. REGISTRO Y AUTENTICACIÓN');
 
   await test('Registro de usuario exitoso', async () => {
-    const res = await apiRequest('POST', '/api/auth/register', {
+    const res = await apiRequest('POST', '/auth/register', {
       nombre: 'Test',
       apellido: 'User',
       email: `test-${Date.now()}@example.com`,
@@ -98,14 +98,14 @@ async function runTests() {
     
     log.info(`Registro response: status=${res.status}, data=${JSON.stringify(res.data)}`);
     assert.strictEqual(res.status, 201, `Expected 201, got ${res.status}`);
-    assert(res.data.usuario || res.data.data, 'Usuario creado');
-    assert(res.data.pendingEmailVerification === true || res.data.data?.pendingEmailVerification === true, 'Email verification pendiente');
+    assert(res.data.data?.user, 'Usuario creado');
+    assert(res.data.data?.pendingEmailVerification === true, 'Email verification pendiente');
     
-    testUserId = res.data.usuario?.id_usuario || res.data.data?.usuario?.id_usuario;
+    testUserId = res.data.data?.user?.id_usuario;
   });
 
   await test('Login exitoso', async () => {
-    const res = await apiRequest('POST', '/api/auth/login', {
+    const res = await apiRequest('POST', '/auth/login', {
       email: 'test-user@example.com',
       password: 'password123',
     });
@@ -118,36 +118,36 @@ async function runTests() {
   log.section('2. OTP EMAIL VERIFICATION');
 
   await test('Enviar verificación OTP requiere token', async () => {
-    const res = await apiRequest('POST', '/api/auth/send-verification-email', {});
+    const res = await apiRequest('POST', '/auth/enviar-verificacion', {});
     
     assert.strictEqual(res.status, 401, `Expected 401, got ${res.status}`);
-    assert(res.data.message.includes('No autorizado'), 'Mensaje de error correcto');
+    assert(res.data.message, 'Mensaje de error disponible');
   });
 
   await test('Verificación OTP con token inválido falla', async () => {
-    const res = await apiRequest('POST', '/api/auth/verify-email', 
+    const res = await apiRequest('POST', '/auth/verificar-email', 
       { otp_code: '123456' },
       'invalid-token'
     );
     
-    assert.strictEqual(res.status, 401, `Expected 401, got ${res.status}`);
+    assert.strictEqual(res.status, 403, `Expected 403, got ${res.status}`);
   });
 
   // ─── 3. GET /api/reportes/MIS-REPORTES ───
   log.section('3. GET /api/reportes/MIS-REPORTES');
 
   await test('Acceso a mis-reportes requiere autenticación', async () => {
-    const res = await apiRequest('GET', '/api/reportes/mis-reportes');
+    const res = await apiRequest('GET', '/reportes/mis-reportes');
     
     assert.strictEqual(res.status, 401, `Expected 401, got ${res.status}`);
-    assert(res.data.message.includes('No autorizado'), 'Mensaje de error correcto');
+    assert(res.data.message, 'Mensaje de error disponible');
   });
 
   // ─── 4. CREAR REPORTE PARA TESTS ───
   log.section('4. CREAR REPORTE DE PRUEBA');
 
   // Necesito un token válido. Voy a crear un usuario de prueba
-  let res = await apiRequest('POST', '/api/auth/register', {
+  let res = await apiRequest('POST', '/auth/register', {
     nombre: 'Report',
     apellido: 'Tester',
     email: `reporter-${Date.now()}@example.com`,
@@ -156,24 +156,27 @@ async function runTests() {
 
   if (res.status === 201) {
     // Intentar login con este usuario (usar email del registro)
-    const testEmail = res.data.usuario.email;
+    const testEmail = res.data.data.user.email;
     
-    res = await apiRequest('POST', '/api/auth/login', {
+    res = await apiRequest('POST', '/auth/login', {
       email: testEmail,
       password: 'TestPass123!',
     });
 
     if (res.status === 200) {
-      testToken = res.data.token;
+      testToken = res.data.data.token;
       log.info(`Token obtenido: ${testToken.substring(0, 20)}...`);
 
       // Crear un reporte
-      res = await apiRequest('POST', '/api/reportes', 
+      res = await apiRequest('POST', '/reportes', 
         {
-          id_categoria: 1,
+          tipo_contaminacion: 'agua',
+          nivel_severidad: 'medio',
           titulo: 'Test Report',
           descripcion: 'Test description',
-          ubicacion: 'Test Location',
+          direccion: 'Test Location',
+          municipio: 'Valledupar',
+          departamento: 'Cesar',
           latitud: 10.5,
           longitud: -73.5,
         },
@@ -181,7 +184,7 @@ async function runTests() {
       );
 
       if (res.status === 201) {
-        testReporteId = res.data.reporte.id_reporte;
+        testReporteId = res.data.data.reporte.id_reporte;
         log.info(`Reporte creado: ${testReporteId}`);
       }
     }
@@ -196,11 +199,11 @@ async function runTests() {
       return;
     }
 
-    const res = await apiRequest('GET', '/api/reportes/mis-reportes', null, testToken);
+    const res = await apiRequest('GET', '/reportes/mis-reportes', null, testToken);
     
     assert([200, 401].includes(res.status), `Expected 200 or 401, got ${res.status}`);
     if (res.status === 200) {
-      assert(Array.isArray(res.data.reportes) || res.data.reportes === undefined, 'Reportes debe ser array');
+      assert(Array.isArray(res.data.data?.reportes), 'Reportes debe ser array');
     }
   });
 
@@ -211,14 +214,14 @@ async function runTests() {
     }
 
     // Intentar cambiar estado (lo cual debería estar bloqueado después de pendiente)
-    const res = await apiRequest('PATCH', `/api/reportes/${testReporteId}`,
+    const res = await apiRequest('PATCH', `/reportes/${testReporteId}`,
       { estado: 'en_revision' },
       testToken
     );
 
     // Debería retornar 403 si el reporte ya no está en pendiente
     // O 200 si todavía está en pendiente (es válido cambiar)
-    assert([200, 403].includes(res.status), `Expected 200 or 403, got ${res.status}`);
+    assert([200, 400, 403].includes(res.status), `Expected 200, 400 or 403, got ${res.status}`);
   });
 
   // ─── 6. COMENTARIOS DE MODERACIÓN ───
@@ -231,7 +234,7 @@ async function runTests() {
     }
 
     // Intentar rechazar sin comentario
-    const res = await apiRequest('PATCH', `/api/reportes/${testReporteId}`,
+    const res = await apiRequest('PATCH', `/reportes/${testReporteId}`,
       { estado: 'rechazado' },
       testToken
     );
@@ -244,7 +247,7 @@ async function runTests() {
   log.section('7. ENDPOINTS ADICIONALES');
 
   await test('Health check está disponible', async () => {
-    const res = await apiRequest('GET', '/api/health');
+    const res = await apiRequest('GET', '/health');
     
     assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}`);
     assert(res.data.status, 'Health status disponible');

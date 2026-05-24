@@ -53,6 +53,7 @@ const expectedFrontendContracts = [
   { method: 'get', path: '/chatbot/faqs' },
   { method: 'get', path: '/notificaciones' },
   { method: 'get', path: '/notificaciones/contador' },
+  { method: 'post', path: '/notificaciones/fcm-token' },
   { method: 'patch', path: '/notificaciones/${uuid}/leida' },
   { method: 'patch', path: '/notificaciones/marcar-todas' },
   { method: 'delete', path: '/notificaciones/${uuid}' },

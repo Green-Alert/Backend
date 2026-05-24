@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   calcularAlertasPredictivas,
   calcularZonasRiesgo,
@@ -9,6 +12,9 @@ import {
   parseZonasParams,
 } from '../../src/services/prediccion.service.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const backendDir = path.resolve(path.dirname(__filename), '../..');
 
 const reportesBase = [
   {
@@ -126,4 +132,41 @@ test('parseAlertasParams valida parametros geograficos y nivel', () => {
     () => parseZonasParams({ min_score: '101' }),
     /min_score debe ser un numero entre 0 y 100/
   );
+  assert.throws(
+    () => parseAlertasParams({ lat: '10.4' }),
+    /lat y lng deben enviarse juntos/
+  );
+  assert.throws(
+    () => parseAlertasParams({ radio_km: '20' }),
+    /radio_km requiere lat y lng/
+  );
+});
+
+test('ReporteModel.findParaPrediccion solo usa reportes moderados con ubicacion', async () => {
+  const source = await fs.readFile(
+    path.join(backendDir, 'src/models/reporte.model.js'),
+    'utf8'
+  );
+  const start = source.indexOf('findParaPrediccion: async');
+  const end = source.indexOf('findTrending: async', start);
+  const section = source.slice(start, end);
+
+  assert.match(section, /r\.deleted_at IS NULL/);
+  assert.match(section, /r\.latitud IS NOT NULL/);
+  assert.match(section, /r\.longitud IS NOT NULL/);
+  assert.match(section, /r\.estado IN \('verificado', 'en_proceso', 'resuelto'\)/);
+  assert.match(section, /r\.created_at >= \?/);
+  assert.match(section, /r\.tipo_contaminacion = \?/);
+});
+
+test('documentacion de prediccion conserva formula y estados admitidos', async () => {
+  const docs = await fs.readFile(
+    path.join(backendDir, 'docs/PREDICCION_ZONAS_RIESGO.md'),
+    'utf8'
+  );
+
+  assert.match(docs, /cantidad_reportes \* 16/);
+  assert.match(docs, /severidad_promedio \* 14/);
+  assert.match(docs, /recencia_promedio/);
+  assert.match(docs, /'verificado', 'en_proceso', 'resuelto'/);
 });
