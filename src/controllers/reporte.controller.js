@@ -9,9 +9,11 @@ import { CategoriaRiesgoModel } from '../models/categoria-riesgo.model.js';
 import { UsuarioModel }   from '../models/usuario.model.js';
 import { EvidenciaModel } from '../models/evidencia.model.js';
 import { LikeModel } from '../models/like.model.js';
+import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { analyzeReporte } from '../services/ia.service.js';
 import { clasificarImagen } from '../services/clasificacion.service.js';
 import { invalidatePrediccionCache } from '../services/prediccion.service.js';
+import { AsignacionEntidadesService } from '../services/asignacion-entidades.service.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { crearNotificacion } from './notificacion.controller.js';
 
@@ -342,6 +344,12 @@ export const createReporte = async (req, res, next) => {
       });
     }
 
+    try {
+      await AsignacionEntidadesService.asignarEntidadesAReporte(reporte);
+    } catch (error) {
+      console.error('[asignacion-entidades] no se pudo asignar reporte:', error.message);
+    }
+
     invalidatePrediccionCache();
     return successResponse(res, { reporte }, 'Reporte creado correctamente.', 201);
   } catch (error) {
@@ -352,6 +360,27 @@ export const createReporte = async (req, res, next) => {
 export const getReportes = async (req, res, next) => {
   try {
     const { estado, tipo_contaminacion, nivel_severidad, municipio, limit = 20, offset = 0 } = req.query;
+
+    if (req.user?.rol === 'entidad') {
+      if (!req.user.id_entidad) {
+        return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+      }
+
+      const data = await ReporteEntidadModel.findByEntidad(req.user.id_entidad, {
+        categoria: tipo_contaminacion,
+        severidad: nivel_severidad,
+        limit,
+        offset,
+      });
+
+      return successResponse(res, {
+        reportes: data.reportes,
+        total: data.total,
+        limit: data.limit,
+        offset: data.offset,
+      });
+    }
+
     const filters = {
       estado, tipo_contaminacion, nivel_severidad, municipio,
       limit: Number(limit),
@@ -798,6 +827,17 @@ export const deleteReporte = async (req, res, next) => {
 export const getReporteById = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    if (req.user?.rol === 'entidad') {
+      if (!req.user.id_entidad) {
+        return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+      }
+
+      const asignado = await ReporteEntidadModel.findOneByReporteAndEntidad(id, req.user.id_entidad);
+      if (!asignado) {
+        return errorResponse(res, 'No tienes permiso para ver este reporte.', 403);
+      }
+    }
+
     const reporte = await ReporteModel.findById(id);
     if (!reporte) return errorResponse(res, 'Reporte no encontrado.', 404);
     await registerReporteView(req, id);

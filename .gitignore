@@ -51,6 +51,8 @@ coverage/
 *.pem
 .cache/
 .output/
+repomix-output.xml
+repomix-output.*
 
 # Directorio temporal
 tmp/

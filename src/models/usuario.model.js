@@ -43,8 +43,9 @@ export const UsuarioModel = {
     );
     const googleId = await UsuarioModel._optionalColumnSelect('google_id');
     const facebookId = await UsuarioModel._optionalColumnSelect('facebook_id');
+    const idEntidad = await UsuarioModel._optionalColumnSelect('id_entidad');
 
-    return `${UsuarioModel._publicUserFields}, ${notificationPreferences}, ${googleId}, ${facebookId}`;
+    return `${UsuarioModel._publicUserFields}, ${idEntidad}, ${notificationPreferences}, ${googleId}, ${facebookId}`;
   },
   
     // Busca un usuario por su email 
@@ -182,13 +183,21 @@ export const UsuarioModel = {
   
    //Crea un nuevo usuario.
    
-  create: async ({ nombre, apellido, email, password_hash, rol = 'ciudadano', telefono = null }) => {
+  create: async ({ nombre, apellido, email, password_hash, rol = 'ciudadano', telefono = null, id_entidad = null }) => {
     const uuid = randomUUID();
-    const [result] = await pool.execute(
-      `INSERT INTO usuarios (uuid, nombre, apellido, email, password_hash, rol, telefono)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [uuid, nombre, apellido, email, password_hash, rol, telefono]
-    );
+    const hasEntidad = await columnExists('usuarios', 'id_entidad');
+
+    const [result] = hasEntidad
+      ? await pool.execute(
+        `INSERT INTO usuarios (uuid, nombre, apellido, email, password_hash, rol, id_entidad, telefono)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, nombre, apellido, email, password_hash, rol, id_entidad, telefono]
+      )
+      : await pool.execute(
+        `INSERT INTO usuarios (uuid, nombre, apellido, email, password_hash, rol, telefono)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, nombre, apellido, email, password_hash, rol, telefono]
+      );
     return result.insertId;
   },
 
@@ -371,19 +380,47 @@ export const UsuarioModel = {
   },
 
   // Actualiza rol del usuario
-  updateRol: async (id_usuario, rol) => {
-    const [result] = await pool.execute(
-      `UPDATE usuarios
-       SET rol = ?, updated_at = NOW()
-       WHERE id_usuario = ? AND deleted_at IS NULL`,
-      [rol, id_usuario]
-    );
+  updateRol: async (id_usuario, rol, id_entidad = null) => {
+    const hasEntidad = await columnExists('usuarios', 'id_entidad');
+
+    const [result] = hasEntidad
+      ? await pool.execute(
+        `UPDATE usuarios
+         SET rol = ?, id_entidad = ?, updated_at = NOW()
+         WHERE id_usuario = ? AND deleted_at IS NULL`,
+        [rol, rol === 'entidad' ? id_entidad : null, id_usuario]
+      )
+      : await pool.execute(
+        `UPDATE usuarios
+         SET rol = ?, updated_at = NOW()
+         WHERE id_usuario = ? AND deleted_at IS NULL`,
+        [rol, id_usuario]
+      );
 
     if (result.affectedRows === 0) {
       return null;
     }
 
     return UsuarioModel.findByIdWithDetails(id_usuario);
+  },
+
+  findActiveByEntidad: async (id_entidad) => {
+    if (!await columnExists('usuarios', 'id_entidad')) {
+      return [];
+    }
+
+    const publicFields = await UsuarioModel._publicUserSelect();
+    const [rows] = await pool.execute(
+      `SELECT ${publicFields}
+       FROM usuarios
+       WHERE rol = 'entidad'
+         AND id_entidad = ?
+         AND activo = 1
+         AND deleted_at IS NULL`,
+      [id_entidad]
+    );
+
+    return rows;
   },
 
   // Activa o desactiva usuario
@@ -410,6 +447,7 @@ export const UsuarioModel = {
          SUM(CASE WHEN rol = 'ciudadano' THEN 1 ELSE 0 END) AS ciudadanos,
          SUM(CASE WHEN rol = 'moderador' THEN 1 ELSE 0 END) AS moderadores,
          SUM(CASE WHEN rol = 'admin' THEN 1 ELSE 0 END) AS admins,
+         SUM(CASE WHEN rol = 'entidad' THEN 1 ELSE 0 END) AS entidades,
          SUM(CASE WHEN activo = 1 THEN 1 ELSE 0 END) AS activos,
          SUM(CASE WHEN activo = 0 THEN 1 ELSE 0 END) AS inactivos,
          SUM(CASE WHEN created_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01') THEN 1 ELSE 0 END) AS nuevos_este_mes

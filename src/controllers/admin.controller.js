@@ -1,8 +1,9 @@
 import { UsuarioModel } from '../models/usuario.model.js';
 import { ReporteModel } from '../models/reporte.model.js';
+import { EntidadModel } from '../models/entidad.model.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 
-const VALID_ROLES = ['ciudadano', 'moderador', 'admin'];
+const VALID_ROLES = ['ciudadano', 'moderador', 'admin', 'entidad'];
 
 const parseLimit = (value, fallback) => {
   const parsed = Number(value);
@@ -102,7 +103,7 @@ export const obtenerUsuario = async (req, res, next) => {
 export const cambiarRol = async (req, res, next) => {
   try {
     const id_usuario = Number(req.params.id);
-    const { rol } = req.body ?? {};
+    const { rol, id_entidad } = req.body ?? {};
     const currentUserId = req.user?.sub;
 
     if (!id_usuario) {
@@ -117,7 +118,20 @@ export const cambiarRol = async (req, res, next) => {
       return errorResponse(res, 'No puedes cambiar tu propio rol.', 403);
     }
 
-    const usuario = await UsuarioModel.updateRol(id_usuario, rol);
+    let entidadId = null;
+    if (rol === 'entidad') {
+      entidadId = Number(id_entidad);
+      if (!entidadId) {
+        return errorResponse(res, 'id_entidad es obligatorio para usuarios entidad.', 400);
+      }
+
+      const entidad = await EntidadModel.findById(entidadId);
+      if (!entidad || !entidad.activo) {
+        return errorResponse(res, 'La entidad no existe o esta inactiva.', 400);
+      }
+    }
+
+    const usuario = await UsuarioModel.updateRol(id_usuario, rol, entidadId);
     if (!usuario) {
       return errorResponse(res, 'Usuario no encontrado.', 404);
     }

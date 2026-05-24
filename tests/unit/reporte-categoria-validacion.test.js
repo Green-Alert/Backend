@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createReporte } from '../../src/controllers/reporte.controller.js';
 import { CategoriaRiesgoModel } from '../../src/models/categoria-riesgo.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
+import { AsignacionEntidadesService } from '../../src/services/asignacion-entidades.service.js';
 
 const createMockResponse = () => ({
   statusCode: null,
@@ -61,6 +62,7 @@ test('createReporte crea reporte cuando la categoria existe y esta activa', asyn
     estado: 'pendiente',
   }));
   t.mock.method(ReporteModel, 'updateIaAnalysis', async () => true);
+  t.mock.method(AsignacionEntidadesService, 'asignarEntidadesAReporte', async () => []);
 
   const req = createValidRequest();
   const res = createMockResponse();
