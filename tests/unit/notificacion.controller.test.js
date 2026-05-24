@@ -9,10 +9,13 @@ import {
   listarNotificaciones,
   marcarLeida,
   marcarTodasLeidas,
+  registrarFcmToken,
 } from '../../src/controllers/notificacion.controller.js';
+import { FcmTokenModel } from '../../src/models/fcm-token.model.js';
 import { updateReporte } from '../../src/controllers/reporte.controller.js';
 import { NotificacionModel } from '../../src/models/notificacion.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
+import { UsuarioModel } from '../../src/models/usuario.model.js';
 
 const createResponse = () => ({
   statusCode: null,
@@ -222,6 +225,7 @@ test('sin JWT todas las rutas de notificaciones responden 401', async () => {
     const cases = [
       ['GET', '/notificaciones'],
       ['GET', '/notificaciones/contador'],
+      ['POST', '/notificaciones/fcm-token'],
       ['PATCH', '/notificaciones/marcar-todas'],
       ['PATCH', '/notificaciones/notif-1/leida'],
       ['DELETE', '/notificaciones/notif-1'],
@@ -238,13 +242,71 @@ test('sin JWT todas las rutas de notificaciones responden 401', async () => {
   }
 });
 
+test('registrarFcmToken guarda token asociado al usuario autenticado', async (t) => {
+  t.mock.method(FcmTokenModel, 'registrar', async (payload) => ({
+    id_fcm_token: 12,
+    token_hash: 'hash-token',
+    registrado: true,
+    payload,
+  }));
+
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await registrarFcmToken(
+    {
+      user: { sub: 7 },
+      body: { token: 'fcm-token-valido-1234567890' },
+      headers: { 'user-agent': 'node-test' },
+    },
+    res,
+    next
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, 'Token FCM registrado.');
+  assert.equal(FcmTokenModel.registrar.mock.callCount(), 1);
+  assert.deepEqual(FcmTokenModel.registrar.mock.calls[0].arguments[0], {
+    id_usuario: 7,
+    token: 'fcm-token-valido-1234567890',
+    user_agent: 'node-test',
+  });
+  assert.equal(next.mock.callCount(), 0);
+});
+
+test('registrarFcmToken rechaza token ausente o invalido antes de guardar', async (t) => {
+  t.mock.method(FcmTokenModel, 'registrar', async () => {
+    throw new Error('No debe guardar tokens invalidos');
+  });
+
+  const cases = [
+    [{}, 'Token FCM requerido.'],
+    [{ token: 'corto' }, 'Token FCM invalido.'],
+    [{ token: 'token con espacios no valido 123456' }, 'Token FCM invalido.'],
+  ];
+
+  for (const [body, message] of cases) {
+    const res = createResponse();
+    await registrarFcmToken(
+      { user: { sub: 7 }, body, headers: {} },
+      res,
+      t.mock.fn()
+    );
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.message, message);
+  }
+
+  assert.equal(FcmTokenModel.registrar.mock.callCount(), 0);
+});
+
 test('updateReporte genera notificacion al dueno cuando cambia estado o comentario', async (t) => {
   const reportes = [
     {
       id_reporte: 10,
       uuid: 'reporte-uuid',
       id_usuario: 7,
-      estado: 'pendiente',
+      estado: 'en_revision',
       titulo: 'Rio contaminado',
       comentario_moderacion: null,
     },
@@ -260,6 +322,10 @@ test('updateReporte genera notificacion al dueno cuando cambia estado o comentar
 
   t.mock.method(ReporteModel, 'findById', async () => reportes.shift());
   t.mock.method(ReporteModel, 'update', async () => true);
+  t.mock.method(UsuarioModel, 'findByIdWithDetails', async () => ({
+    id_usuario: 7,
+    notification_preferences: { report_updates: true },
+  }));
   t.mock.method(NotificacionModel, 'create', async () => ({ id_notificacion: 1, uuid: 'notif-1' }));
 
   const res = createResponse();
@@ -281,6 +347,55 @@ test('updateReporte genera notificacion al dueno cuando cambia estado o comentar
   assert.equal(NotificacionModel.create.mock.calls[0].arguments[0].id_usuario, 7);
   assert.equal(NotificacionModel.create.mock.calls[0].arguments[0].tipo, 'reporte_estado');
   assert.equal(NotificacionModel.create.mock.calls[1].arguments[0].tipo, 'reporte_comentario');
+});
+
+test('updateReporte respeta preferencia report_updates al crear notificaciones', async (t) => {
+  const reportes = [
+    {
+      id_reporte: 12,
+      uuid: 'reporte-uuid-3',
+      id_usuario: 7,
+      estado: 'en_revision',
+      titulo: 'Humo constante',
+      comentario_moderacion: null,
+    },
+    {
+      id_reporte: 12,
+      uuid: 'reporte-uuid-3',
+      id_usuario: 7,
+      estado: 'verificado',
+      titulo: 'Humo constante',
+      comentario_moderacion: null,
+    },
+  ];
+
+  t.mock.method(ReporteModel, 'findById', async () => reportes.shift());
+  t.mock.method(ReporteModel, 'update', async () => true);
+  t.mock.method(UsuarioModel, 'findByIdWithDetails', async () => ({
+    id_usuario: 7,
+    notification_preferences: { report_updates: false },
+  }));
+  t.mock.method(NotificacionModel, 'create', async () => {
+    throw new Error('No debe crear notificacion con report_updates desactivado');
+  });
+
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await updateReporte(
+    {
+      params: { id: '12' },
+      user: { sub: 99, rol: 'moderador' },
+      body: { estado: 'verificado' },
+    },
+    res,
+    next
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(UsuarioModel.findByIdWithDetails.mock.callCount(), 1);
+  assert.equal(NotificacionModel.create.mock.callCount(), 0);
+  assert.equal(next.mock.callCount(), 0);
 });
 
 test('fallo al crear notificacion no rompe updateReporte', async (t) => {
@@ -305,6 +420,10 @@ test('fallo al crear notificacion no rompe updateReporte', async (t) => {
 
   t.mock.method(ReporteModel, 'findById', async () => reportes.shift());
   t.mock.method(ReporteModel, 'update', async () => true);
+  t.mock.method(UsuarioModel, 'findByIdWithDetails', async () => ({
+    id_usuario: 7,
+    notification_preferences: { report_updates: true },
+  }));
   t.mock.method(NotificacionModel, 'create', async () => {
     throw new Error('tabla no disponible');
   });

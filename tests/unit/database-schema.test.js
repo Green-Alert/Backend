@@ -24,6 +24,7 @@ test('schema completo incluye tablas de soporte requeridas por el backend', asyn
     'reporte_likes',
     'reporte_vistas',
     'notificaciones',
+    'fcm_tokens',
   ]) {
     assert.match(schema, new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`));
   }
@@ -45,6 +46,7 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
     'ia_etiquetas JSON NULL',
     'ia_confianza DECIMAL(5, 2) NULL',
     'ia_procesado BOOLEAN DEFAULT FALSE',
+    'token_hash CHAR(64) NOT NULL',
   ]) {
     assert.ok(schema.includes(column), column);
   }

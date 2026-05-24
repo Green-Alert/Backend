@@ -48,6 +48,20 @@ const buildAllowedValuesMessage = (field, allowedValues) => (
   `${field} debe ser uno de: ${allowedValues.join(', ')}.`
 );
 
+const TRANSICIONES_ESTADO_REPORTE = {
+  pendiente: ['en_revision', 'rechazado'],
+  en_revision: ['verificado', 'en_proceso', 'rechazado'],
+  verificado: ['en_proceso', 'resuelto', 'rechazado'],
+  en_proceso: ['resuelto', 'rechazado'],
+  resuelto: [],
+  rechazado: ['pendiente'],
+};
+
+const canTransitionReporteEstado = (estadoActual, estadoNuevo) => {
+  if (estadoActual === estadoNuevo) return true;
+  return (TRANSICIONES_ESTADO_REPORTE[estadoActual] ?? []).includes(estadoNuevo);
+};
+
 const buildReporteLink = (reporte) => `/reports/${reporte.uuid ?? reporte.id_reporte}`;
 
 const canManageReporteEvidence = (reporte, user) => {
@@ -667,6 +681,14 @@ export const updateReporte = async (req, res, next) => {
       }
 
       campos.estado = estado;
+
+      if (!canTransitionReporteEstado(reporte.estado, campos.estado)) {
+        return errorResponse(
+          res,
+          `Transicion de estado no permitida: ${reporte.estado} -> ${campos.estado}.`,
+          400
+        );
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(campos, 'nivel_severidad')) {
@@ -712,7 +734,7 @@ export const updateReporte = async (req, res, next) => {
       );
 
       if (cambioEstado) {
-        crearNotificacion({
+        await crearNotificacion({
           id_usuario: reporte.id_usuario,
           tipo: 'reporte_estado',
           titulo: `Tu reporte cambio a "${campos.estado}"`,
@@ -724,7 +746,7 @@ export const updateReporte = async (req, res, next) => {
       }
 
       if (nuevoComentario) {
-        crearNotificacion({
+        await crearNotificacion({
           id_usuario: reporte.id_usuario,
           tipo: 'reporte_comentario',
           titulo: 'Comentario de moderacion en tu reporte',

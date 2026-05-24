@@ -109,6 +109,14 @@ export const parseAlertasParams = (query = {}) => {
   if (query.radio_km !== undefined && (radio_km === null || radio_km <= 0 || radio_km > 500)) {
     throw validationError('radio_km debe ser un numero mayor a 0 y menor o igual a 500.');
   }
+  const hasLat = query.lat !== undefined && query.lat !== null && query.lat !== '';
+  const hasLng = query.lng !== undefined && query.lng !== null && query.lng !== '';
+  if (hasLat !== hasLng) {
+    throw validationError('lat y lng deben enviarse juntos.');
+  }
+  if (query.radio_km !== undefined && (!hasLat || !hasLng)) {
+    throw validationError('radio_km requiere lat y lng.');
+  }
 
   return {
     ...zonasParams,
