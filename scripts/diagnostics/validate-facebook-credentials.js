@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { getFacebookConfig } from './src/config/facebook.config.js';
+import { getFacebookConfig } from '../../src/config/facebook.config.js';
 
 const isPlaceholder = (value) => {
   if (!value) return true;

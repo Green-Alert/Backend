@@ -20,7 +20,8 @@ console.log('\nGoogle OAuth Credentials Validation');
 console.log('=====================================\n');
 
 // Cargar .env
-const envPath = path.join(__dirname, '.env');
+const backendDir = path.resolve(__dirname, '../..');
+const envPath = path.join(backendDir, '.env');
 if (!fs.existsSync(envPath)) {
   console.error('[ERROR] Archivo .env no encontrado');
   console.error(`   Crea el archivo: ${envPath}`);
@@ -80,7 +81,7 @@ console.log();
 console.log('[CONFIG] Cargando configuración de backend...\n');
 
 try {
-  const { getGoogleConfig } = await import('./src/config/google.config.js');
+  const { getGoogleConfig } = await import('../../src/config/google.config.js');
   const config = getGoogleConfig();
   
   console.log('[OK] Configuración cargada exitosamente');

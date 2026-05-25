@@ -78,8 +78,6 @@ Backend/
   .env.example
   DATABASE_SCHEMA_COMPLETE.sql
   package.json
-  validate-facebook-credentials.js
-  validate-google-credentials.js
   docs/
     README.md
   middlewares/
@@ -103,6 +101,13 @@ Backend/
     categoria-riesgo.routes.js
     health.routes.js
     reporte.routes.js
+  scripts/
+    diagnostics/
+      validate-facebook-credentials.js
+      validate-google-credentials.js
+    sql/
+      00_create_database.sql
+      verify_schema.sql
   src/
     app.js
     server.js
@@ -331,8 +336,8 @@ Las pruebas de integracion y algunos scripts legacy pueden requerir servidor, ba
 ## Scripts de validacion OAuth
 
 ```bash
-node validate-google-credentials.js
-node validate-facebook-credentials.js
+node scripts/diagnostics/validate-google-credentials.js
+node scripts/diagnostics/validate-facebook-credentials.js
 ```
 
 Estos scripts revisan que las variables de entorno OAuth esten configuradas y no tengan valores de ejemplo.
