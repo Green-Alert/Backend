@@ -12,6 +12,7 @@ import { LikeModel } from '../models/like.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { analyzeReporte } from '../services/ia.service.js';
 import { clasificarImagen } from '../services/clasificacion.service.js';
+import { calcularScoreEvidencias } from '../services/evidencia-score.service.js';
 import { invalidatePrediccionCache } from '../services/prediccion.service.js';
 import { AsignacionEntidadesService } from '../services/asignacion-entidades.service.js';
 import { errorResponse, successResponse } from '../utils/response.js';
@@ -293,6 +294,11 @@ export const createReporte = async (req, res, next) => {
       return errorResponse(res, parsedLongitud.error, 400);
     }
 
+    const scoreEvidencias = await calcularScoreEvidencias(uploadedFiles, nivelSeveridad);
+    const hashesEvidencias = new Map(
+      scoreEvidencias.evidencias.map((item, index) => [index, item.hash_sha256])
+    );
+
     const idReporte = await ReporteModel.create({
       id_usuario:       req.user.sub,
       tipo_contaminacion: tipoContaminacion,
@@ -305,6 +311,7 @@ export const createReporte = async (req, res, next) => {
       departamento:       departamento?.trim() || null,
       latitud:            parsedLatitud.value,
       longitud:           parsedLongitud.value,
+      confianza_evidencia: scoreEvidencias.score,
     });
 
     let reporte = await ReporteModel.findById(idReporte);
@@ -340,6 +347,7 @@ export const createReporte = async (req, res, next) => {
         nombre_original: file.originalname,
         mime_type:       file.mimetype,
         tamano_bytes:    file.size,
+        hash_sha256:     hashesEvidencias.get(index) ?? null,
         orden:           index,
       });
     }
@@ -887,6 +895,7 @@ export const addEvidenciaReporte = async (req, res, next) => {
     }
 
     const tipo = req.file.mimetype.startsWith('video/') ? 'video' : 'imagen';
+    const scoreEvidencia = await calcularScoreEvidencias([req.file], reporte.nivel_severidad);
     const idEvidencia = await EvidenciaModel.create({
       id_reporte: reporte.id_reporte,
       id_usuario: req.user.sub,
@@ -895,6 +904,7 @@ export const addEvidenciaReporte = async (req, res, next) => {
       nombre_original: req.file.originalname,
       mime_type: req.file.mimetype,
       tamano_bytes: req.file.size,
+      hash_sha256: scoreEvidencia.evidencias[0]?.hash_sha256 ?? null,
       orden: 0,
     });
 

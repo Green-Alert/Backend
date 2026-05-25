@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS reportes (
   ia_etiquetas JSON NULL,
   ia_confianza DECIMAL(5, 2) NULL,
   ia_procesado BOOLEAN DEFAULT FALSE,
+  confianza_evidencia TINYINT UNSIGNED NULL DEFAULT NULL,
   comentario_moderacion TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -149,6 +150,7 @@ CREATE TABLE IF NOT EXISTS reportes (
   INDEX idx_deleted_at (deleted_at),
   INDEX idx_reportes_estado_created_at (estado, created_at),
   INDEX idx_reportes_tipo_created_at (tipo_contaminacion, created_at),
+  INDEX idx_reportes_confianza_evidencia (confianza_evidencia),
   INDEX idx_reportes_latitud_longitud (latitud, longitud),
   SPATIAL INDEX idx_punto_geo (punto_geo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

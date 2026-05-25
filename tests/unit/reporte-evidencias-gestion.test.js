@@ -6,6 +6,8 @@ import {
   listEvidenciasReporte,
 } from '../../src/controllers/reporte.controller.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
+
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 import { ReporteModel } from '../../src/models/reporte.model.js';
 
 const createResponse = () => ({
@@ -102,6 +104,7 @@ test('addEvidenciaReporte agrega evidencia al reporte como moderador', async (t)
     nombre_original: 'foto.png',
     mime_type: 'image/png',
     tamano_bytes: 1024,
+    hash_sha256: EMPTY_SHA256,
     orden: 0,
   });
   assert.equal(next.mock.callCount(), 0);

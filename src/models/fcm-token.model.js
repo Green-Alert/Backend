@@ -43,6 +43,18 @@ export const FcmTokenModel = {
 
     return result.affectedRows > 0;
   },
+
+  findActivosByUsuario: async (id_usuario) => {
+    const [rows] = await pool.execute(
+      `SELECT id_fcm_token, token, token_hash, user_agent, last_seen_at
+       FROM fcm_tokens
+       WHERE id_usuario = ? AND activo = TRUE
+       ORDER BY last_seen_at DESC`,
+      [id_usuario]
+    );
+
+    return rows;
+  },
 };
 
 export default FcmTokenModel;

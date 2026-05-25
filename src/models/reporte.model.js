@@ -73,6 +73,9 @@ export const normalizeReporteIA = (reporte) => {
     ia_confianza: reporte.ia_confianza === null || reporte.ia_confianza === undefined
       ? null
       : (Number.isFinite(confianza) ? confianza : null),
+    confianza_evidencia: reporte.confianza_evidencia === null || reporte.confianza_evidencia === undefined
+      ? null
+      : Number(reporte.confianza_evidencia),
     ia_procesado: reporte.ia_procesado === true ||
       reporte.ia_procesado === 'true' ||
       Boolean(Number(reporte.ia_procesado)),
@@ -105,7 +108,7 @@ export const ReporteModel = {
               r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
-              r.ia_etiquetas, r.ia_confianza, r.ia_procesado,
+              r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
               r.votos_relevancia, r.vistas,
               r.created_at, r.updated_at,
               u.nombre AS autor_nombre, u.apellido AS autor_apellido, u.rol AS autor_rol
@@ -210,7 +213,7 @@ export const ReporteModel = {
               r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
-              r.ia_etiquetas, r.ia_confianza, r.ia_procesado,
+              r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
               r.votos_relevancia, r.vistas,
               r.comentario_moderacion,
               r.created_at, r.updated_at
@@ -230,7 +233,7 @@ export const ReporteModel = {
     const safeOffset = Math.max(0,               parseInt(offset, 10) || 0);
     const [rows] = await pool.execute(
       `SELECT id_reporte, uuid, tipo_contaminacion, subcategoria, estado, nivel_severidad,
-              titulo, municipio, departamento, ia_etiquetas, ia_confianza, ia_procesado,
+              titulo, municipio, departamento, ia_etiquetas, ia_confianza, ia_procesado, confianza_evidencia,
               votos_relevancia, vistas,
               created_at, updated_at
        FROM reportes
@@ -257,6 +260,7 @@ export const ReporteModel = {
     direccion = null,
     municipio = null,
     departamento = null,
+    confianza_evidencia = null,
   }) => {
     const uuid = randomUUID();
     // Orden base esperado: tipo_contaminacion, estado, nivel_severidad.
@@ -267,14 +271,17 @@ export const ReporteModel = {
       const [result] = await pool.execute(
         `INSERT INTO reportes
            (uuid, id_usuario, tipo_contaminacion, subcategoria, estado, nivel_severidad, titulo, descripcion,
+            confianza_evidencia,
             latitud, longitud, direccion, municipio, departamento, punto_geo)
          VALUES
            (?, ?, ?, ?, ?, ?, ?, ?,
+            ?,
             ?, ?, ?, ?, ?,
             ST_GeomFromText(CONCAT('POINT(', ?, ' ', ?, ')'), 4326))`,
         [
           uuid,
           id_usuario, tipo_contaminacion, subcategoria, ESTADO_INICIAL_REPORTE, nivel_severidad, titulo, descripcion,
+          confianza_evidencia,
           latitud, longitud, direccion, municipio, departamento,
           longitud, latitud,
         ]
@@ -284,10 +291,12 @@ export const ReporteModel = {
       const [result] = await pool.execute(
         `INSERT INTO reportes
            (uuid, id_usuario, tipo_contaminacion, subcategoria, estado, nivel_severidad, titulo, descripcion,
+            confianza_evidencia,
             latitud, longitud, direccion, municipio, departamento)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [uuid,
          id_usuario, tipo_contaminacion, subcategoria, ESTADO_INICIAL_REPORTE, nivel_severidad, titulo, descripcion,
+         confianza_evidencia,
          null, null, direccion, municipio, departamento]
       );
       return result.insertId;
@@ -335,6 +344,17 @@ export const ReporteModel = {
         procesado ? 1 : 0,
         id_reporte,
       ]
+    );
+
+    return result.affectedRows > 0;
+  },
+
+  updateConfianzaEvidencia: async (id_reporte, confianza_evidencia) => {
+    const [result] = await pool.execute(
+      `UPDATE reportes
+       SET confianza_evidencia = ?, updated_at = NOW()
+       WHERE id_reporte = ? AND deleted_at IS NULL`,
+      [confianza_evidencia, id_reporte]
     );
 
     return result.affectedRows > 0;
@@ -597,7 +617,7 @@ export const ReporteModel = {
               r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
-              r.ia_etiquetas, r.ia_confianza, r.ia_procesado,
+              r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
               r.votos_relevancia, r.vistas,
               r.created_at, r.updated_at,
               (r.votos_relevancia * 3 + r.vistas + GREATEST(0, 30 - TIMESTAMPDIFF(DAY, r.created_at, NOW()))) AS trending_score
