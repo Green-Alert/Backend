@@ -35,6 +35,13 @@ docs/tests/                         [DOCS] DOCUMENTACIÓN CENTRALIZADA
 
 ### Todos los tests
 ```bash
+npm test
+```
+
+`npm test` ejecuta la suite unitaria estable con `node:test`.
+
+### Runner legacy
+```bash
 node tests/run-all.js
 ```
 

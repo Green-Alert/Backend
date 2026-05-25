@@ -2,6 +2,81 @@ import { CategoriaRiesgoModel } from '../models/categoria-riesgo.model.js';
 import { ReporteModel } from '../models/reporte.model.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
+const CODIGO_REGEX = /^[a-z0-9_]+$/;
+const COLOR_HEX_REGEX = /^#[0-9a-fA-F]{6}$/;
+
+const normalizeCodigo = (codigo) => (
+  typeof codigo === 'string' ? codigo.trim().toLowerCase() : ''
+);
+
+const normalizeOptionalText = (value) => (
+  typeof value === 'string' ? (value.trim() || null) : null
+);
+
+const parseActivo = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1 ? true : value === 0 ? false : null;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+  }
+  return null;
+};
+
+const parseNivelPrioridad = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+const validateCodigo = (codigo) => {
+  if (!codigo) return 'El codigo de categoria es requerido.';
+  if (!CODIGO_REGEX.test(codigo)) {
+    return 'El codigo solo puede contener letras minusculas, numeros y guion bajo.';
+  }
+  return null;
+};
+
+const buildCategoryPayload = ({ requireAll = false, body = {} } = {}) => {
+  const payload = {};
+
+  if (Object.prototype.hasOwnProperty.call(body, 'nombre') || requireAll) {
+    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+    if (!nombre || nombre.length < 3) {
+      return { error: 'El nombre debe tener al menos 3 caracteres.' };
+    }
+    payload.nombre = nombre;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'descripcion')) {
+    payload.descripcion = normalizeOptionalText(body.descripcion);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'icono')) {
+    payload.icono = normalizeOptionalText(body.icono);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'color_hex')) {
+    const colorHex = normalizeOptionalText(body.color_hex);
+    if (colorHex && !COLOR_HEX_REGEX.test(colorHex)) {
+      return { error: 'El color_hex debe tener formato hexadecimal, por ejemplo #16a34a.' };
+    }
+    payload.color_hex = colorHex;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'nivel_prioridad_default')) {
+    const nivel = parseNivelPrioridad(body.nivel_prioridad_default);
+    if (nivel === undefined) {
+      return { error: 'El nivel_prioridad_default debe ser un entero positivo o cero.' };
+    }
+    payload.nivel_prioridad_default = nivel;
+  }
+
+  return { payload };
+};
+
 /**
  * Controlador para gestionar categorías de riesgo ambiental
  * 
@@ -31,6 +106,124 @@ export const obtenerTodasLasCategorias = async (req, res, next) => {
         total: categorias.length 
       }, 
       'Categorías obtenidas correctamente.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const crearCategoria = async (req, res, next) => {
+  try {
+    const codigo = normalizeCodigo(req.body?.codigo);
+    const codigoError = validateCodigo(codigo);
+
+    if (codigoError) {
+      return errorResponse(res, codigoError, 400);
+    }
+
+    const { payload, error } = buildCategoryPayload({
+      requireAll: true,
+      body: req.body,
+    });
+
+    if (error) {
+      return errorResponse(res, error, 400);
+    }
+
+    const existing = await CategoriaRiesgoModel.findByCodigoIncludingInactive(codigo);
+    if (existing) {
+      return errorResponse(res, 'Ya existe una categoria con ese codigo.', 409);
+    }
+
+    const activo = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'activo')
+      ? parseActivo(req.body.activo)
+      : true;
+
+    if (activo === null) {
+      return errorResponse(res, 'El campo activo debe ser booleano.', 400);
+    }
+
+    await CategoriaRiesgoModel.create({
+      codigo,
+      ...payload,
+      activo,
+    });
+
+    const categoria = await CategoriaRiesgoModel.findByCodigoIncludingInactive(codigo);
+
+    return successResponse(
+      res,
+      { categoria },
+      'Categoria creada correctamente.',
+      201
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const actualizarCategoria = async (req, res, next) => {
+  try {
+    const codigo = normalizeCodigo(req.params.codigo);
+    const codigoError = validateCodigo(codigo);
+
+    if (codigoError) {
+      return errorResponse(res, codigoError, 400);
+    }
+
+    const existing = await CategoriaRiesgoModel.findByCodigoIncludingInactive(codigo);
+    if (!existing) {
+      return errorResponse(res, 'Categoria no encontrada.', 404);
+    }
+
+    const { payload, error } = buildCategoryPayload({ body: req.body });
+    if (error) {
+      return errorResponse(res, error, 400);
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return errorResponse(res, 'No se enviaron campos validos para actualizar.', 400);
+    }
+
+    await CategoriaRiesgoModel.updateByCodigo(codigo, payload);
+    const categoria = await CategoriaRiesgoModel.findByCodigoIncludingInactive(codigo);
+
+    return successResponse(
+      res,
+      { categoria },
+      'Categoria actualizada correctamente.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const cambiarEstadoCategoria = async (req, res, next) => {
+  try {
+    const codigo = normalizeCodigo(req.params.codigo);
+    const codigoError = validateCodigo(codigo);
+
+    if (codigoError) {
+      return errorResponse(res, codigoError, 400);
+    }
+
+    const activo = parseActivo(req.body?.activo);
+    if (activo === null) {
+      return errorResponse(res, 'El campo activo debe ser booleano.', 400);
+    }
+
+    const existing = await CategoriaRiesgoModel.findByCodigoIncludingInactive(codigo);
+    if (!existing) {
+      return errorResponse(res, 'Categoria no encontrada.', 404);
+    }
+
+    await CategoriaRiesgoModel.updateActivoByCodigo(codigo, activo);
+    const categoria = await CategoriaRiesgoModel.findByCodigoIncludingInactive(codigo);
+
+    return successResponse(
+      res,
+      { categoria },
+      'Estado de categoria actualizado correctamente.'
     );
   } catch (error) {
     return next(error);
@@ -170,27 +363,21 @@ export const obtenerEstadisticasCategorias = async (req, res, next) => {
 export const obtenerEstadisticasSeveridad = async (req, res, next) => {
   try {
     // Obtener todas las categorías
-    const categorias = await CategoriaRiesgoModel.findAll(true);
+    const estadisticas = await CategoriaRiesgoModel.getEstadisticasPorSeveridad();
 
     const estadisticasPorSeveridad = {};
 
     // Para cada categoría, contar por severidad
-    for (const categoria of categorias) {
-      const reportes = await ReporteModel.findAll({
-        tipo_contaminacion: categoria.codigo,
-        limit: 1000,
-        offset: 0
-      });
-
+    for (const categoria of estadisticas) {
       estadisticasPorSeveridad[categoria.codigo] = {
         nombre_categoria: categoria.nombre,
         icono: categoria.icono,
         color: categoria.color_hex,
         por_severidad: {
-          bajo: reportes.filter(r => r.nivel_severidad === 'bajo').length,
-          medio: reportes.filter(r => r.nivel_severidad === 'medio').length,
-          alto: reportes.filter(r => r.nivel_severidad === 'alto').length,
-          critico: reportes.filter(r => r.nivel_severidad === 'critico').length
+          bajo: Number(categoria.bajo) || 0,
+          medio: Number(categoria.medio) || 0,
+          alto: Number(categoria.alto) || 0,
+          critico: Number(categoria.critico) || 0
         }
       };
     }

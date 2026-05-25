@@ -1,21 +1,25 @@
-import nodemailer from 'nodemailer';
 import { getEmailConfig } from '../config/email.config.js';
 
 let cachedTransporter = null;
 
-const getTransporter = () => {
+const getTransporter = async () => {
   if (!cachedTransporter) {
+    const { default: nodemailer } = await import('nodemailer');
     const { host, port, user, pass } = getEmailConfig();
 
-    cachedTransporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: {
-        user,
-        pass,
-      },
-    });
+    if (process.env.EMAIL_TRANSPORT === 'json') {
+      cachedTransporter = nodemailer.createTransport({ jsonTransport: true });
+    } else {
+      cachedTransporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: {
+          user,
+          pass,
+        },
+      });
+    }
   }
 
   return cachedTransporter;
@@ -187,7 +191,7 @@ const generarTemplateBienvenida = (nombre, apellido) => {
 
 export const enviarCorreo = async (to, subject, html) => {
   try {
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
     const { from } = getEmailConfig();
 
     return transporter.sendMail({
@@ -203,7 +207,7 @@ export const enviarCorreo = async (to, subject, html) => {
 };
 
 export const verificarConexionSmtp = async () => {
-  const transporter = getTransporter();
+  const transporter = await getTransporter();
   return transporter.verify();
 };
 

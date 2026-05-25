@@ -10,7 +10,7 @@
 import 'dotenv/config';
 import fetch from 'node-fetch';
 
-const API_URL = process.env.API_URL || 'http://localhost:3000/api';
+const API_URL = (process.env.API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 let testsPassed = 0;
 let testsFailed = 0;
 
@@ -40,7 +40,7 @@ const assert = (condition, testName) => {
 async function testConnection() {
   log.info('\n--- TEST 0: Connection ---');
   try {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
+    const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'test@test.com', password: 'test' }),

@@ -1,5 +1,6 @@
 import assert from 'assert';
-import UsuarioModel from '../../src/models/usuario.model.js';
+import { fileURLToPath } from 'url';
+import { UsuarioModel } from '../../src/models/usuario.model.js';
 
 const testName = 'Usuario Model - Pagination (LIMIT/OFFSET)';
 
@@ -149,3 +150,22 @@ export const tests = [
     }
   }
 ];
+
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  let failed = 0;
+
+  for (const test of tests) {
+    try {
+      await test.run();
+      console.log(`[PASS] ${test.name}`);
+    } catch (error) {
+      failed++;
+      console.error(`[FAIL] ${test.name}`);
+      console.error(`  ${error.message}`);
+    }
+  }
+
+  process.exit(failed > 0 ? 1 : 0);
+}

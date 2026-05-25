@@ -7,7 +7,7 @@ const validateGoogleConfig = () => {
   const config = {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/auth/google/callback',
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
   };
 
   const missingVars = [];
@@ -34,7 +34,7 @@ const validateGoogleConfig = () => {
 
 export const getGoogleAuthUrlConfig = () => ({
   clientId: process.env.GOOGLE_CLIENT_ID || 'your_client_id_here.apps.googleusercontent.com',
-  callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/auth/google/callback',
+  callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
   isConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
 });
 

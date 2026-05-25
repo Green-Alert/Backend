@@ -11,7 +11,7 @@ export const notFoundHandler = (req, res, next) => {
 export const errorHandler = (err, req, res, next) => {
   console.error('error:', err.message);
 
-  const statusCode = err.statusCode || 500;
+  const statusCode = err.statusCode || (err.name === 'MulterError' ? 400 : 500);
 
   res.status(statusCode).json({
     status: 'error',

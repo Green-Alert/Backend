@@ -8,7 +8,7 @@ const validateFacebookConfig = () => {
   const config = {
     appId: process.env.FACEBOOK_APP_ID,
     appSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackUrl: process.env.FACEBOOK_CALLBACK_URL || 'http://localhost:3000/api/auth/facebook/callback',
+    callbackUrl: process.env.FACEBOOK_CALLBACK_URL || 'http://localhost:3000/auth/facebook/callback',
     graphApiVersion: process.env.FACEBOOK_GRAPH_API_VERSION || 'v20.0',
   };
 

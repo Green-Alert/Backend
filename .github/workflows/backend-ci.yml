@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   backend-validation:
@@ -22,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Link Frontend directory for contract tests
+        run: ln -s "$(pwd)/Frontend" ../Frontend
+
       - name: Validate JavaScript syntax
         run: |
           find . \
@@ -29,10 +35,5 @@ jobs:
             -path ./.git -prune -o \
             -name "*.js" -print0 | xargs -0 -n1 node --check
 
-      - name: Run tests if configured
-        run: |
-          if node -e "const pkg = require('./package.json'); process.exit(pkg.scripts && pkg.scripts.test ? 0 : 1);"; then
-            npm test
-          else
-            echo "No standard test script configured; skipping tests."
-          fi
+      - name: Run unit tests
+        run: npm run test:unit

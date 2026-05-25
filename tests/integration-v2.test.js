@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = (process.env.API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 const colors = {
   reset: '\x1b[0m',
@@ -18,8 +18,8 @@ const colors = {
 
 const log = {
   test: (msg) => console.log(`${colors.cyan}✓ TEST: ${msg}${colors.reset}`),
-  pass: (msg) => console.log(`${colors.green}✅ PASS: ${msg}${colors.reset}`),
-  fail: (msg) => console.log(`${colors.red}❌ FAIL: ${msg}${colors.reset}`),
+  pass: (msg) => console.log(`${colors.green} PASS: ${msg}${colors.reset}`),
+  fail: (msg) => console.log(`${colors.red} FAIL: ${msg}${colors.reset}`),
   info: (msg) => console.log(`${colors.blue}ℹ INFO: ${msg}${colors.reset}`),
   section: (msg) => console.log(`\n${colors.cyan}═══════════════════════════════════\n  ${msg}\n═══════════════════════════════════${colors.reset}\n`),
 };
@@ -77,7 +77,7 @@ async function runTests() {
 
   await test('Registro de usuario exitoso', async () => {
     testEmail = `test-${Date.now()}@example.com`;
-    const res = await apiRequest('POST', '/api/auth/register', {
+    const res = await apiRequest('POST', '/auth/register', {
       nombre: 'Test',
       apellido: 'User',
       email: testEmail,
@@ -99,7 +99,7 @@ async function runTests() {
       return;
     }
     
-    const res = await apiRequest('POST', '/api/auth/login', {
+    const res = await apiRequest('POST', '/auth/login', {
       email: testEmail,
       password: 'TestPass123!',
     });
@@ -112,13 +112,13 @@ async function runTests() {
   // ─── 2. ENDPOINTS OTP ───
   log.section('2. ENDPOINTS OTP EMAIL VERIFICATION');
 
-  await test('GET /api/auth/send-verification-email devuelve 401 sin token', async () => {
-    const res = await apiRequest('POST', '/api/auth/send-verification-email', {});
+  await test('POST /auth/enviar-verificacion devuelve 401 sin token', async () => {
+    const res = await apiRequest('POST', '/auth/enviar-verificacion', {});
     assert.strictEqual(res.status, 401, `Expected 401, got ${res.status}`);
   });
 
-  await test('GET /api/auth/verify-email devuelve 400/404 sin parámetros', async () => {
-    const res = await apiRequest('GET', '/api/auth/verify-email');
+  await test('GET /auth/verify-email devuelve 400 sin parámetros', async () => {
+    const res = await apiRequest('GET', '/auth/verify-email');
     assert([400, 404].includes(res.status), `Expected 400/404, got ${res.status}`);
   });
 
@@ -126,7 +126,7 @@ async function runTests() {
   log.section('3. GET /api/reportes/MIS-REPORTES');
 
   await test('Acceso a mis-reportes requiere autenticación', async () => {
-    const res = await apiRequest('GET', '/api/reportes/mis-reportes');
+    const res = await apiRequest('GET', '/reportes/mis-reportes');
     assert.strictEqual(res.status, 401, `Expected 401, got ${res.status}`);
   });
 
@@ -136,7 +136,7 @@ async function runTests() {
       return;
     }
 
-    const res = await apiRequest('GET', '/api/reportes/mis-reportes', null, testToken);
+    const res = await apiRequest('GET', '/reportes/mis-reportes', null, testToken);
     assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}`);
     assert(Array.isArray(res.data?.data?.reportes), 'Reportes debe ser array');
     assert(typeof res.data?.data?.total === 'number', 'Total es número');
@@ -153,7 +153,7 @@ async function runTests() {
       return;
     }
 
-    const res = await apiRequest('POST', '/api/reportes', {
+    const res = await apiRequest('POST', '/reportes', {
       tipo_contaminacion: 'inundacion',
       nivel_severidad: 'medio',
       titulo: 'Test Report Title',
@@ -166,7 +166,7 @@ async function runTests() {
     }, testToken);
 
     if (res.status === 201) {
-      testReporteId = res.data?.data?.id_reporte;
+      testReporteId = res.data?.data?.reporte?.id_reporte;
       log.info(`Reporte creado: ${testReporteId}`);
     }
   });
@@ -175,13 +175,13 @@ async function runTests() {
   log.section('5. ENDPOINTS ADICIONALES');
 
   await test('Health check está disponible', async () => {
-    const res = await apiRequest('GET', '/api/health');
+    const res = await apiRequest('GET', '/health');
     assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}`);
     assert(res.data?.status, 'Health status disponible');
   });
 
-  await test('GET /api/reportes devuelve lista pública', async () => {
-    const res = await apiRequest('GET', '/api/reportes');
+  await test('GET /reportes devuelve lista pública', async () => {
+    const res = await apiRequest('GET', '/reportes');
     assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}`);
     assert(Array.isArray(res.data?.data?.reportes), 'Reportes debe ser array');
   });

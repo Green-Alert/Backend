@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$baseUrl = "http://localhost:3000/api"
+$baseUrl = "http://localhost:3000"
 $email = "refresh-demo-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())@example.com"
 $password = "Password123!"
 

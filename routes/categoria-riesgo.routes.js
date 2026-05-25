@@ -1,10 +1,14 @@
 import { Router } from 'express';
+import { verifyToken, requireRoles } from '../middlewares/auth.middleware.js';
 import {
   obtenerTodasLasCategorias,
   obtenerCategoriaPorCodigo,
   obtenerReportesPorCategoria,
   obtenerEstadisticasCategorias,
-  obtenerEstadisticasSeveridad
+  obtenerEstadisticasSeveridad,
+  crearCategoria,
+  actualizarCategoria,
+  cambiarEstadoCategoria,
 } from '../src/controllers/categoria-riesgo.controller.js';
 
 /**
@@ -26,6 +30,9 @@ categoriaRouter.get('/estadisticas/por-severidad', obtenerEstadisticasSeveridad)
 
 // Obtener todas las categorías
 categoriaRouter.get('/', obtenerTodasLasCategorias);
+categoriaRouter.post('/', verifyToken, requireRoles('admin'), crearCategoria);
+categoriaRouter.patch('/:codigo', verifyToken, requireRoles('admin'), actualizarCategoria);
+categoriaRouter.patch('/:codigo/estado', verifyToken, requireRoles('admin'), cambiarEstadoCategoria);
 
 // Obtener reportes de una categoría específica
 categoriaRouter.get('/:codigo/reportes', obtenerReportesPorCategoria);

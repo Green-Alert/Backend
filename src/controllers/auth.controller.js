@@ -1,6 +1,10 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { UsuarioModel } from '../models/usuario.model.js';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  parseNotificationPreferences,
+  UsuarioModel,
+} from '../models/usuario.model.js';
 import { RefreshTokenModel } from '../models/refresh-token.model.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import {
@@ -14,6 +18,11 @@ import {
   generateFacebookAuthUrl,
   getFacebookUserInfo,
 } from '../services/facebook-oauth.service.js';
+import {
+  consumeOAuthCallbackCode,
+  createOAuthCallbackCode,
+} from '../services/oauth-callback-code.service.js';
+import { getApiPrefix } from '../config/api-prefix.config.js';
 
 /**
  * ESTRATEGIA DE AUTENTICACIÓN CON FACEBOOK
@@ -65,6 +74,7 @@ const validateGeneratedToken = (token, secret, user) => {
     Number(decoded.sub) !== Number(user.id_usuario) ||
     decoded.email !== user.email ||
     decoded.rol !== user.rol ||
+    (user.id_entidad && Number(decoded.id_entidad) !== Number(user.id_entidad)) ||
     (user.uuid && decoded.uuid !== user.uuid)
   ) {
     const error = new Error('JWT generado no coincide con el usuario autenticado');
@@ -84,6 +94,7 @@ const buildToken = (user) => {
       sub: user.id_usuario,
       uuid: user.uuid,
       rol: user.rol,
+      id_entidad: user.id_entidad ?? null,
       email: user.email,
     },
     secret,
@@ -152,14 +163,39 @@ const toPublicUser = (user) => ({
   apellido: user.apellido,
   email: user.email,
   rol: user.rol,
+  id_entidad: user.id_entidad ?? null,
   activo: user.activo,
   email_verificado: user.email_verificado,
   avatar_url: user.avatar_url,
   telefono: user.telefono,
+  es_oauth: Boolean(user.google_id || user.facebook_id || (
+    typeof user.password_hash === 'string' && user.password_hash.startsWith('oauth:')
+  )),
+  notification_preferences: parseNotificationPreferences(user.notification_preferences),
   created_at: user.created_at,
 });
 
 const isDevelopment = () => process.env.NODE_ENV === 'development';
+
+const buildFrontendAuthCallbackUrl = (authPayload) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const callbackCode = createOAuthCallbackCode(authPayload);
+  const url = new URL('/auth/callback', frontendUrl);
+
+  url.hash = `oauth_code=${encodeURIComponent(callbackCode)}`;
+
+  return url.toString();
+};
+
+const redirectToFrontendAuthCallback = (res, authPayload) => {
+  res.set({
+    'Cache-Control': 'no-store',
+    Pragma: 'no-cache',
+    'Referrer-Policy': 'no-referrer',
+  });
+
+  return res.redirect(303, buildFrontendAuthCallbackUrl(authPayload));
+};
 
 const errorResponseWithDevelopmentDetails = (
   res,
@@ -221,11 +257,55 @@ const getVerificationTokenExpiration = () => {
 
 const buildEmailVerificationLink = (token) => {
   const apiBaseUrl = process.env.API_PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const apiPrefix = (process.env.API_PREFIX || '/api').replace(/\/+$/, '');
+  const apiPrefix = getApiPrefix();
   return `${apiBaseUrl}${apiPrefix}/auth/verify-email?token=${token}`;
 };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const buildPublicUploadUrl = (filename) => {
+  const apiBaseUrl = process.env.API_PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
+  return `${apiBaseUrl.replace(/\/+$/, '')}/uploads/${filename}`;
+};
+
+const buildOtpEmailHtml = ({ user, otpCode }) => generarTemplateBaseCorreo({
+  title: 'Verifica tu correo',
+  subtitle: 'Codigo de seguridad de GreenAlert',
+  previewText: 'Usa este codigo de 6 digitos para activar tu cuenta.',
+  content: `
+    <div class="message">
+      Hola ${user.nombre}, usa este codigo para verificar tu correo electronico en GreenAlert.
+    </div>
+    <div style="text-align:center;margin:28px 0;">
+      <div style="display:inline-block;background:#ecfdf5;border:1px solid #10b981;border-radius:12px;padding:18px 24px;">
+        <p style="margin:0 0 8px;color:#047857;font-size:13px;font-weight:600;">Codigo de verificacion</p>
+        <p style="margin:0;color:#064e3b;font-size:36px;letter-spacing:8px;font-weight:800;">${otpCode}</p>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Seguridad</h3>
+      <p>Este codigo expira en ${OTP_MINUTES} minutos. Si no creaste esta cuenta, ignora este correo.</p>
+    </div>
+  `,
+});
+
+const sendVerificationOtpEmail = async (user) => {
+  const otpCode = generateOtpCode();
+  const otpCodeHash = hashOtpCode(otpCode);
+  const otpExp = new Date(Date.now() + OTP_MINUTES * 60 * 1000);
+
+  await UsuarioModel.setOtp(user.id_usuario, otpCodeHash, otpExp);
+  await UsuarioModel.updateOtpLastRequest(user.id_usuario);
+  await enviarCorreo(
+    user.email,
+    'Codigo de verificacion - GreenAlert',
+    buildOtpEmailHtml({ user, otpCode })
+  );
+
+  return {
+    expiresIn: OTP_MINUTES * 60,
+  };
+};
 
 export const register = async (req, res, next) => {
   try {
@@ -275,30 +355,7 @@ export const register = async (req, res, next) => {
 
     // Generar y enviar OTP automáticamente después del registro
     try {
-      const { rawToken, tokenHash } = buildVerificationToken();
-      const tokenExp = getVerificationTokenExpiration();
-      const verificationLink = buildEmailVerificationLink(rawToken);
-
-      await UsuarioModel.setEmailVerificationToken(idUsuario, tokenHash, tokenExp);
-      const html = generarTemplateBaseCorreo({
-        title: 'Verifica tu correo',
-        subtitle: 'Confirma tu cuenta de GreenAlert',
-        previewText: 'Confirma tu correo para activar tu cuenta de GreenAlert.',
-        actionUrl: verificationLink,
-        actionText: 'Verificar correo',
-        content: `
-          <div class="message">
-            Hola ${createdUser.nombre}, tu cuenta fue creada correctamente.
-            Para completar el registro, confirma tu correo electronico con el siguiente enlace.
-          </div>
-          <div class="panel">
-            <h3>Seguridad</h3>
-            <p>Este enlace expira en ${VERIFICATION_TOKEN_HOURS} horas. Si no creaste esta cuenta, ignora este correo.</p>
-          </div>
-        `,
-      });
-
-      await enviarCorreo(createdUser.email, 'Verifica tu correo - GreenAlert', html);
+      await sendVerificationOtpEmail(createdUser);
     } catch (emailError) {
       console.error('Error enviando verificacion en registro:', emailError);
       // No fallar el registro si falla el email, pero loguear el error
@@ -321,7 +378,7 @@ export const register = async (req, res, next) => {
         ...authPayload,
         pendingEmailVerification: true,
       },
-      'Cuenta creada correctamente. Verifica tu email con el enlace enviado.',
+      'Cuenta creada correctamente. Verifica tu email con el codigo enviado.',
       201
     );
   } catch (error) {
@@ -429,11 +486,35 @@ export const refreshAccessToken = async (req, res, next) => {
   }
 };
 
+export const exchangeOAuthCallbackCode = async (req, res, next) => {
+  try {
+    const { code } = req.body ?? {};
+    const authPayload = consumeOAuthCallbackCode(code);
+
+    if (!authPayload) {
+      return errorResponse(res, 'Codigo OAuth invalido o expirado.', 400);
+    }
+
+    return successResponse(
+      res,
+      authPayload,
+      'Autenticacion OAuth completada.',
+      200
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const logout = async (req, res, next) => {
   try {
     const { refreshToken, allDevices = false } = req.body ?? {};
 
-    if (allDevices && req.user?.sub) {
+    if (allDevices && !req.user?.sub) {
+      return errorResponse(res, 'JWT requerido para cerrar sesion en todos los dispositivos.', 401);
+    }
+
+    if (allDevices) {
       await RefreshTokenModel.revokeAllForUser(req.user.sub);
       return successResponse(res, null, 'Sesion cerrada en todos los dispositivos.');
     }
@@ -513,6 +594,31 @@ export const updatePerfil = async (req, res, next) => {
   }
 };
 
+export const updateAvatar = async (req, res, next) => {
+  try {
+    const id_usuario = req.user?.sub;
+
+    if (!id_usuario) {
+      return errorResponse(res, 'No autorizado.', 401);
+    }
+
+    if (!req.file) {
+      return errorResponse(res, 'Imagen de avatar requerida.', 400);
+    }
+
+    const avatarUrl = buildPublicUploadUrl(req.file.filename);
+    const updatedUser = await UsuarioModel.updateAvatar(id_usuario, avatarUrl);
+
+    if (!updatedUser) {
+      return errorResponse(res, 'Usuario no encontrado.', 404);
+    }
+
+    return successResponse(res, { user: updatedUser }, 'Avatar actualizado correctamente.', 200);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const changePassword = async (req, res, next) => {
   try {
     const id_usuario = req.user?.sub;
@@ -568,7 +674,9 @@ export const changePassword = async (req, res, next) => {
       return errorResponse(res, 'Usuario no encontrado.', 404);
     }
 
-    return successResponse(res, null, 'Contrasena actualizada', 200);
+    await RefreshTokenModel.revokeAllForUser(id_usuario);
+
+    return successResponse(res, null, 'Contrasena actualizada. Se cerraron las sesiones activas.', 200);
   } catch (error) {
     return next(error);
   }
@@ -671,8 +779,9 @@ export const resetPassword = async (req, res, next) => {
     }
 
     await UsuarioModel.clearResetToken(user.id_usuario);
+    await RefreshTokenModel.revokeAllForUser(user.id_usuario);
 
-    return successResponse(res, null, 'Contrasena actualizada correctamente.', 200);
+    return successResponse(res, null, 'Contrasena actualizada correctamente. Se cerraron las sesiones activas.', 200);
   } catch (error) {
     return next(error);
   }
@@ -718,9 +827,9 @@ const OTP_MINUTES = 10;
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 const MAX_OTP_ATTEMPTS = 5;
 
-// Genera un código OTP de 6 dígitos aleatorio
-const generateOtpCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+// Genera un codigo OTP de 6 digitos con aleatoriedad criptografica.
+export const generateOtpCode = () => {
+  return crypto.randomInt(100000, 1000000).toString();
 };
 
 // Hashea el código OTP con SHA-256
@@ -761,6 +870,18 @@ export const sendVerificationOtp = async (req, res, next) => {
         );
       }
     }
+
+    const otp = await sendVerificationOtpEmail(user);
+
+    return successResponse(
+      res,
+      {
+        message: `Codigo de verificacion enviado a ${user.email}`,
+        expiresIn: otp.expiresIn,
+      },
+      'Codigo OTP enviado correctamente.',
+      200
+    );
 
     // Generar OTP
     const otpCode = generateOtpCode();
@@ -821,7 +942,7 @@ export const verifyEmailOtp = async (req, res, next) => {
       return errorResponse(res, 'No autorizado.', 401);
     }
 
-    const { otp_code } = req.body ?? {};
+    const otp_code = req.body?.otp_code ?? req.body?.codigo;
 
     if (typeof otp_code !== 'string' || otp_code.length !== 6 || !/^\d{6}$/.test(otp_code)) {
       return errorResponse(res, 'El código OTP debe ser un número de 6 dígitos.', 400);
@@ -889,20 +1010,57 @@ export const updateNotifications = async (req, res, next) => {
     const id_usuario = req.user?.sub;
     if (!id_usuario) return errorResponse(res, 'No autorizado.', 401);
 
-    const { preferences } = req.body ?? {};
-    if (!preferences || typeof preferences !== 'object')
+    const preferences = req.body?.preferences ?? req.body;
+    if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)) {
       return errorResponse(res, 'Las preferencias deben ser un objeto.', 400);
+    }
 
-    // Validar estructura de preferencias
     const validKeys = ['email_alerts', 'push_notifications', 'report_updates', 'weekly_summary'];
     const validatedPreferences = {};
+    const invalidKeys = Object.keys(preferences).filter((key) => !validKeys.includes(key));
+
+    if (invalidKeys.length > 0) {
+      return errorResponse(
+        res,
+        `Preferencias no permitidas: ${invalidKeys.join(', ')}.`,
+        400
+      );
+    }
+
     for (const key of validKeys) {
       if (key in preferences) validatedPreferences[key] = Boolean(preferences[key]);
     }
 
+    if (Object.keys(validatedPreferences).length === 0) {
+      return errorResponse(res, 'Debe enviar al menos una preferencia valida.', 400);
+    }
+
+    const user = await UsuarioModel.findByIdWithDetails(id_usuario);
+    if (!user) {
+      return errorResponse(res, 'Usuario no encontrado.', 404);
+    }
+
+    const notificationPreferences = {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      ...(user.notification_preferences || {}),
+      ...validatedPreferences,
+    };
+
+    const updatedUser = await UsuarioModel.updateNotificationPreferences(
+      id_usuario,
+      notificationPreferences
+    );
+
+    if (!updatedUser) {
+      return errorResponse(res, 'Usuario no encontrado.', 404);
+    }
+
     return successResponse(
       res,
-      { preferences: validatedPreferences },
+      {
+        preferences: updatedUser.notification_preferences,
+        user: toPublicUser(updatedUser),
+      },
       'Preferencias de notificaciones actualizadas.',
       200
     );
@@ -1020,6 +1178,51 @@ export const googleLogin = async (req, res, next) => {
   }
 };
 
+export const googleAccessTokenLogin = async (req, res, next) => {
+  try {
+    const { access_token, id_token } = req.body ?? {};
+
+    if (id_token) {
+      req.body.id_token = id_token;
+      return googleLogin(req, res, next);
+    }
+
+    if (!access_token || typeof access_token !== 'string') {
+      return errorResponse(res, 'El access_token de Google es requerido.', 400);
+    }
+
+    const googleUser = await getGoogleUserInfo(access_token);
+    if (!googleUser.success) {
+      return errorResponse(res, 'No fue posible obtener informacion de Google.', 401);
+    }
+
+    let user;
+    try {
+      user = await findOrCreateGoogleUser(googleUser);
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.message, error.statusCode);
+      }
+      throw error;
+    }
+
+    if (!user) {
+      return errorResponse(res, 'No fue posible crear la cuenta con este correo.', 400);
+    }
+
+    const authPayload = await buildAuthPayload(user, req);
+
+    return successResponse(
+      res,
+      authPayload,
+      'Autenticacion con Google exitosa.',
+      200
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const googleCallback = async (req, res, next) => {
   try {
     const { code } = req.query ?? {};
@@ -1089,11 +1292,7 @@ export const googleCallback = async (req, res, next) => {
     // Generar JWT
     const authPayload = await buildAuthPayload(user, req);
 
-    // Redirigir al frontend con el token
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const redirectUrl = `${frontendUrl}/auth/callback?token=${authPayload.accessToken}&refreshToken=${authPayload.refreshToken}&user=${encodeURIComponent(JSON.stringify(authPayload.user))}`;
-
-    return res.redirect(redirectUrl);
+    return redirectToFrontendAuthCallback(res, authPayload);
   } catch (error) {
     return next(error);
   }
@@ -1192,6 +1391,59 @@ export const getFacebookAuthUrl = async (req, res, next) => {
   }
 };
 
+export const facebookLogin = async (req, res, next) => {
+  try {
+    const { code, access_token } = req.body ?? {};
+
+    let accessToken = access_token;
+    if (!accessToken) {
+      if (!code || typeof code !== 'string') {
+        return errorResponse(res, 'Codigo de autorizacion de Facebook requerido.', 400);
+      }
+
+      const tokenExchange = await exchangeFacebookCodeForToken(code);
+      if (!tokenExchange.success) {
+        return errorResponseWithDevelopmentDetails(
+          res,
+          'No fue posible intercambiar el codigo de Facebook.',
+          400,
+          tokenExchange.facebookError || tokenExchange.error
+        );
+      }
+      accessToken = tokenExchange.accessToken;
+    }
+
+    const facebookUser = await getFacebookUserInfo(accessToken);
+    if (!facebookUser.success) {
+      return errorResponseWithDevelopmentDetails(
+        res,
+        'No fue posible obtener informacion de Facebook.',
+        400,
+        facebookUser.facebookError || facebookUser.error
+      );
+    }
+
+    let user;
+    try {
+      user = await findOrCreateFacebookUser(facebookUser);
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.message, error.statusCode);
+      }
+      throw error;
+    }
+
+    if (!user) {
+      return errorResponse(res, 'No fue posible autenticar con Facebook.', 400);
+    }
+
+    const authPayload = await buildAuthPayload(user, req);
+    return successResponse(res, authPayload, 'Inicio de sesion con Facebook exitoso.', 200);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const facebookCallback = async (req, res, next) => {
   try {
     const { code } = req.query ?? {};
@@ -1256,10 +1508,10 @@ export const facebookCallback = async (req, res, next) => {
       );
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const redirectUrl = `${frontendUrl}/auth/callback?token=${authPayload.accessToken}&refreshToken=${authPayload.refreshToken}&user=${encodeURIComponent(JSON.stringify(publicUser))}`;
-
-    return res.redirect(redirectUrl);
+    return redirectToFrontendAuthCallback(res, {
+      ...authPayload,
+      user: publicUser,
+    });
   } catch (error) {
     return next(error);
   }

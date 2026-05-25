@@ -55,6 +55,9 @@ node tests/run-all.js config
 
 ## 📊 Contenido por Categoría
 
+### Mejoras Backend
+- `DOCKER_SERVICIOS.md` - Dockerizacion individual de servicios backend sin Docker Compose.
+
 ### 🧪 Tests Automatizados
 - `tests/EMAIL_CONFIG.md` - 8 tests de configuración
 - `tests/EMAIL_VERIFICATION.md` - Tests de verificación
