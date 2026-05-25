@@ -86,6 +86,7 @@ test('addEvidenciaReporte agrega evidencia al reporte como moderador', async (t)
       filename: 'evidencia.png',
       originalname: 'foto.png',
       size: 1024,
+      buffer: Buffer.from('fake-image'),
     },
   };
   const res = createResponse();
@@ -94,16 +95,20 @@ test('addEvidenciaReporte agrega evidencia al reporte como moderador', async (t)
   await addEvidenciaReporte(req, res, next);
 
   assert.equal(res.statusCode, 201);
-  assert.deepEqual(EvidenciaModel.create.mock.calls[0].arguments[0], {
-    id_reporte: 15,
-    id_usuario: 9,
-    tipo_archivo: 'imagen',
-    url_archivo: '/uploads/evidencia.png',
-    nombre_original: 'foto.png',
-    mime_type: 'image/png',
-    tamano_bytes: 1024,
-    orden: 0,
-  });
+  const evidencia = EvidenciaModel.create.mock.calls[0].arguments[0];
+  assert.equal(evidencia.id_reporte, 15);
+  assert.equal(evidencia.id_usuario, 9);
+  assert.equal(evidencia.tipo_archivo, 'imagen');
+  assert.match(evidencia.url_archivo, /^https:\/\/res\.cloudinary\.com\/test\/image\/upload\//);
+  assert.equal(evidencia.nombre_original, 'foto.png');
+  assert.equal(evidencia.mime_type, 'image/png');
+  assert.equal(evidencia.tamano_bytes, 1024);
+  assert.equal(evidencia.storage_provider, 'cloudinary');
+  assert.match(evidencia.cloudinary_public_id, /^green-alert\/test\//);
+  assert.match(evidencia.cloudinary_asset_id, /^asset-/);
+  assert.equal(evidencia.cloudinary_resource_type, 'image');
+  assert.equal(evidencia.cloudinary_metadata.bytes, 1024);
+  assert.equal(evidencia.orden, 0);
   assert.equal(next.mock.callCount(), 0);
 });
 

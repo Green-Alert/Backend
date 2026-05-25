@@ -3,7 +3,10 @@ import { getCloudinaryConfig } from '../config/cloudinary.config.js';
 
 let injectedClient = null;
 
-const isTestEnvironment = () => process.env.NODE_ENV === 'test';
+const isTestEnvironment = () => (
+  process.env.NODE_ENV === 'test' ||
+  typeof process.env.NODE_TEST_CONTEXT === 'string'
+);
 
 const sanitizePublicIdPart = (value) => (
   String(value || 'archivo')
@@ -25,6 +28,7 @@ const buildTestUploadResult = ({ originalname, mimetype, size }) => {
   const publicId = `green-alert/test/${timestamp}-${name}`;
 
   return {
+    asset_id: `asset-${timestamp}`,
     public_id: publicId,
     secure_url: `https://res.cloudinary.com/test/${resourceType}/upload/${publicId}`,
     resource_type: resourceType,
