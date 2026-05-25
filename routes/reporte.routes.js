@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken, requireRoles } from '../middlewares/auth.middleware.js';
-import { upload } from '../middlewares/upload.middleware.js';
+import { uploadReportFiles } from '../middlewares/upload.middleware.js';
 import {
   createReporte,
   getReportes,
@@ -26,7 +26,7 @@ reporteRouter.get('/export', verifyToken, requireRoles('admin', 'moderador'), ex
 reporteRouter.get('/mis-reportes', verifyToken, getMisReportes);
 reporteRouter.get('/',      getReportes);
 reporteRouter.get('/:id',   getReporteById);
-reporteRouter.post('/',     verifyToken, upload.single('file'), createReporte);
+reporteRouter.post('/',     verifyToken, uploadReportFiles, createReporte);
 reporteRouter.patch('/:id', verifyToken, updateReporte);
 reporteRouter.delete('/:id', verifyToken, deleteReporte);
 

@@ -8,6 +8,7 @@ export const ReporteModel = {
   findAll: async ({
     estado,
     tipo_contaminacion,
+    subcategoria,
     nivel_severidad,
     municipio,
     limit = 20,
@@ -24,6 +25,10 @@ export const ReporteModel = {
       conditions.push('r.tipo_contaminacion = ?');
       params.push(tipo_contaminacion);
     }
+    if (subcategoria) {
+      conditions.push('r.subcategoria = ?');
+      params.push(subcategoria);
+    }
     if (nivel_severidad) {
       conditions.push('r.nivel_severidad = ?');
       params.push(nivel_severidad);
@@ -39,7 +44,7 @@ export const ReporteModel = {
 
     const [rows] = await pool.execute(
       `SELECT r.id_reporte, r.uuid, r.id_usuario,
-              r.tipo_contaminacion, r.estado, r.nivel_severidad,
+              r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
               r.votos_relevancia, r.vistas,
@@ -59,6 +64,7 @@ export const ReporteModel = {
   findForExport: async ({
     estado,
     tipo_contaminacion,
+    subcategoria,
     nivel_severidad,
     municipio,
     desde,
@@ -74,6 +80,10 @@ export const ReporteModel = {
     if (tipo_contaminacion) {
       conditions.push('r.tipo_contaminacion = ?');
       params.push(tipo_contaminacion);
+    }
+    if (subcategoria) {
+      conditions.push('r.subcategoria = ?');
+      params.push(subcategoria);
     }
     if (nivel_severidad) {
       conditions.push('r.nivel_severidad = ?');
@@ -97,6 +107,7 @@ export const ReporteModel = {
     const [rows] = await pool.execute(
       `SELECT r.titulo,
               r.tipo_contaminacion,
+              r.subcategoria,
               r.nivel_severidad,
               r.estado,
               r.municipio,
@@ -119,7 +130,7 @@ export const ReporteModel = {
   findById: async (id_reporte) => {
     const [rows] = await pool.execute(
       `SELECT r.id_reporte, r.uuid, r.id_usuario,
-              r.tipo_contaminacion, r.estado, r.nivel_severidad,
+              r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
               r.ia_etiquetas, r.ia_confianza, r.ia_procesado,
@@ -141,7 +152,7 @@ export const ReporteModel = {
     const safeLimit  = Math.max(1, Math.min(100, parseInt(limit,  10) || 20));
     const safeOffset = Math.max(0,               parseInt(offset, 10) || 0);
     const [rows] = await pool.execute(
-      `SELECT id_reporte, uuid, tipo_contaminacion, estado, nivel_severidad,
+      `SELECT id_reporte, uuid, tipo_contaminacion, subcategoria, estado, nivel_severidad,
               titulo, municipio, departamento, votos_relevancia, vistas,
               created_at, updated_at
        FROM reportes
@@ -159,6 +170,7 @@ export const ReporteModel = {
   create: async ({
     id_usuario,
     tipo_contaminacion,
+    subcategoria = null,
     nivel_severidad = 'medio',
     titulo,
     descripcion = null,
@@ -175,15 +187,15 @@ export const ReporteModel = {
     if (hasCoords) {
       const [result] = await pool.execute(
         `INSERT INTO reportes
-           (uuid, id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+           (uuid, id_usuario, tipo_contaminacion, subcategoria, nivel_severidad, titulo, descripcion,
             latitud, longitud, direccion, municipio, departamento, punto_geo)
          VALUES
-           (?, ?, ?, ?, ?, ?,
+           (?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ST_GeomFromText(CONCAT('POINT(', ?, ' ', ?, ')'), 4326))`,
         [
           uuid,
-          id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+          id_usuario, tipo_contaminacion, subcategoria, nivel_severidad, titulo, descripcion,
           latitud, longitud, direccion, municipio, departamento,
           longitud, latitud,
         ]
@@ -192,11 +204,11 @@ export const ReporteModel = {
     } else {
       const [result] = await pool.execute(
         `INSERT INTO reportes
-           (uuid, id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+           (uuid, id_usuario, tipo_contaminacion, subcategoria, nivel_severidad, titulo, descripcion,
             latitud, longitud, direccion, municipio, departamento)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [uuid,
-         id_usuario, tipo_contaminacion, nivel_severidad, titulo, descripcion,
+         id_usuario, tipo_contaminacion, subcategoria, nivel_severidad, titulo, descripcion,
          null, null, direccion, municipio, departamento]
       );
       return result.insertId;
@@ -209,7 +221,7 @@ export const ReporteModel = {
   update: async (id_reporte, campos) => {
     const permitidos = [
       'estado', 'nivel_severidad', 'titulo', 'descripcion',
-      'direccion', 'municipio', 'departamento', 'comentario_moderacion',
+      'direccion', 'municipio', 'departamento', 'subcategoria', 'comentario_moderacion',
     ];
 
     const sets = [];

@@ -30,6 +30,7 @@ export const createReporte = async (req, res, next) => {
   try {
     const {
       tipo_contaminacion,
+      subcategoria,
       nivel_severidad,
       titulo,
       descripcion,
@@ -59,6 +60,7 @@ export const createReporte = async (req, res, next) => {
     const idReporte = await ReporteModel.create({
       id_usuario:       req.user.sub,
       tipo_contaminacion: tipo_contaminacion.trim(),
+      subcategoria:        subcategoria?.trim() || null,
       nivel_severidad:    nivel_severidad.trim(),
       titulo:             titulo.trim(),
       descripcion:        descripcion?.trim() || null,
@@ -71,19 +73,23 @@ export const createReporte = async (req, res, next) => {
 
     const reporte = await ReporteModel.findById(idReporte);
 
-    // Guardar evidencia si se adjuntó archivo
-    if (req.file) {
-      const tipo = req.file.mimetype.startsWith('video/') ? 'video' : 'imagen';
-      await EvidenciaModel.create({
-        id_reporte:      idReporte,
-        id_usuario:      req.user.sub,
-        tipo_archivo:    tipo,
-        url_archivo:     `/uploads/${req.file.filename}`,
-        nombre_original: req.file.originalname,
-        mime_type:       req.file.mimetype,
-        tamano_bytes:    req.file.size,
-        orden:           0,
-      });
+    // Guardar evidencias si se adjuntaron archivos
+    const evidencias = req.reportFiles ?? (req.file ? [req.file] : []);
+
+    if (evidencias.length > 0) {
+      await Promise.all(evidencias.map((file, index) => {
+        const tipo = file.mimetype.startsWith('video/') ? 'video' : 'imagen';
+        return EvidenciaModel.create({
+          id_reporte:      idReporte,
+          id_usuario:      req.user.sub,
+          tipo_archivo:    tipo,
+          url_archivo:     `/uploads/${file.filename}`,
+          nombre_original: file.originalname,
+          mime_type:       file.mimetype,
+          tamano_bytes:    file.size,
+          orden:           index,
+        });
+      }));
     }
 
     return successResponse(res, { reporte }, 'Reporte creado correctamente.', 201);
@@ -94,9 +100,9 @@ export const createReporte = async (req, res, next) => {
 
 export const getReportes = async (req, res, next) => {
   try {
-    const { estado, tipo_contaminacion, nivel_severidad, municipio, limit = 20, offset = 0 } = req.query;
+    const { estado, tipo_contaminacion, subcategoria, nivel_severidad, municipio, limit = 20, offset = 0 } = req.query;
     const reportes = await ReporteModel.findAll({
-      estado, tipo_contaminacion, nivel_severidad, municipio,
+      estado, tipo_contaminacion, subcategoria, nivel_severidad, municipio,
       limit: Number(limit),
       offset: Number(offset),
     });
@@ -111,6 +117,7 @@ export const exportReportes = async (req, res, next) => {
     const {
       format,
       tipo_contaminacion,
+      subcategoria,
       estado,
       nivel_severidad,
       municipio,
@@ -120,6 +127,7 @@ export const exportReportes = async (req, res, next) => {
 
     const reportes = await ReporteModel.findForExport({
       tipo_contaminacion,
+      subcategoria,
       estado,
       nivel_severidad,
       municipio,
@@ -138,6 +146,7 @@ export const exportReportes = async (req, res, next) => {
     const headers = [
       'titulo',
       'tipo_contaminacion',
+      'subcategoria',
       'nivel_severidad',
       'estado',
       'municipio',
@@ -270,8 +279,8 @@ export const updateReporte = async (req, res, next) => {
 
     // Owners can edit content fields; mods/admins can also change estado y comentario_moderacion
     const allowed = isOwner
-      ? ['titulo', 'descripcion', 'direccion', 'municipio', 'departamento']
-      : ['estado', 'nivel_severidad', 'titulo', 'descripcion', 'direccion', 'municipio', 'departamento', 'comentario_moderacion'];
+      ? ['titulo', 'descripcion', 'direccion', 'municipio', 'departamento', 'subcategoria']
+      : ['estado', 'nivel_severidad', 'titulo', 'descripcion', 'direccion', 'municipio', 'departamento', 'subcategoria', 'comentario_moderacion'];
 
     const campos = {};
     for (const key of allowed) {
