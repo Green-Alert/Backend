@@ -193,6 +193,23 @@ const cleanupCloudinaryUploads = async (uploads) => {
   );
 };
 
+const shouldDeleteFromCloudinary = (evidencia) => (
+  evidencia?.storage_provider === 'cloudinary' &&
+  typeof evidencia.cloudinary_public_id === 'string' &&
+  evidencia.cloudinary_public_id.trim().length > 0
+);
+
+const deleteEvidenceCloudinaryAsset = async (evidencia) => {
+  if (!shouldDeleteFromCloudinary(evidencia)) {
+    return;
+  }
+
+  const resourceType = evidencia.cloudinary_resource_type ||
+    (evidencia.tipo_archivo === 'video' ? 'video' : 'image');
+
+  await deleteFileByPublicId(evidencia.cloudinary_public_id, { resourceType });
+};
+
 const parseBooleanLike = (value) => (
   value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true'
 );
@@ -986,6 +1003,17 @@ export const deleteEvidenciaReporte = async (req, res, next) => {
 
     if (!evidencia || Number(evidencia.id_reporte) !== Number(reporte.id_reporte)) {
       return errorResponse(res, 'Evidencia no encontrada.', 404);
+    }
+
+    try {
+      await deleteEvidenceCloudinaryAsset(evidencia);
+    } catch (error) {
+      console.error('[cloudinary] no se pudo eliminar evidencia:', error.message);
+      return errorResponse(
+        res,
+        'No se pudo eliminar el archivo asociado en Cloudinary. Intenta nuevamente.',
+        502
+      );
     }
 
     await EvidenciaModel.remove(evidenciaId);
