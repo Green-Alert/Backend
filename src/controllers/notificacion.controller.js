@@ -1,6 +1,7 @@
 import { NotificacionModel } from '../models/notificacion.model.js';
 import { FcmTokenModel } from '../models/fcm-token.model.js';
 import { UsuarioModel } from '../models/usuario.model.js';
+import { enviarPush } from '../services/fcm.service.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 
 const FCM_TOKEN_MIN_LENGTH = 20;
@@ -29,21 +30,45 @@ const TIPOS_ACTUALIZACION_REPORTE = new Set([
   'reporte_creado',
 ]);
 
-const puedeCrearNotificacion = async ({ id_usuario, tipo }) => {
-  if (!TIPOS_ACTUALIZACION_REPORTE.has(tipo)) return true;
-
+const resolverPreferenciasNotificacion = async ({ id_usuario, tipo }) => {
   const usuario = await UsuarioModel.findByIdWithDetails(id_usuario);
-  if (!usuario) return false;
+  if (!usuario) {
+    return { allowed: false, pushEnabled: false };
+  }
 
-  return usuario.notification_preferences?.report_updates !== false;
+  const preferences = usuario.notification_preferences ?? {};
+  const allowed = !TIPOS_ACTUALIZACION_REPORTE.has(tipo) ||
+    preferences.report_updates !== false;
+
+  return {
+    allowed,
+    pushEnabled: preferences.push_notifications === true,
+  };
 };
 
 export const crearNotificacion = async (payload) => {
   try {
-    const allowed = await puedeCrearNotificacion(payload);
+    const { allowed, pushEnabled } = await resolverPreferenciasNotificacion(payload);
     if (!allowed) return null;
 
-    return await NotificacionModel.create(payload);
+    const notificacion = await NotificacionModel.create(payload);
+
+    if (pushEnabled) {
+      await enviarPush({
+        id_usuario: payload.id_usuario,
+        titulo: payload.titulo,
+        mensaje: payload.mensaje,
+        data: {
+          tipo: payload.tipo,
+          referencia_tipo: payload.referencia_tipo,
+          referencia_uuid: payload.referencia_uuid,
+          link: payload.link,
+          uuid: notificacion?.uuid,
+        },
+      });
+    }
+
+    return notificacion;
   } catch (error) {
     console.error('[notificaciones] error al crear:', error.message);
     return null;

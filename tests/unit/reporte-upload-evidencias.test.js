@@ -7,6 +7,8 @@ import { EvidenciaModel } from '../../src/models/evidencia.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
 import { AsignacionEntidadesService } from '../../src/services/asignacion-entidades.service.js';
 
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
 const createResponse = () => ({
   statusCode: null,
   body: null,
@@ -80,9 +82,11 @@ test('createReporte guarda multiples imagenes con metadata y orden', async (t) =
     nombre_original: 'original-1.png',
     mime_type: 'image/png',
     tamano_bytes: 1025,
+    hash_sha256: EMPTY_SHA256,
     orden: 1,
   });
   assert.equal(ReporteModel.create.mock.calls[0].arguments[0].subcategoria, 'rio_contaminado');
+  assert.equal(typeof ReporteModel.create.mock.calls[0].arguments[0].confianza_evidencia, 'number');
   assert.equal(next.mock.callCount(), 0);
 });
 

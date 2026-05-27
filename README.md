@@ -70,6 +70,13 @@ npm run test:email   # Ejecuta prueba SMTP, requiere configuracion de email
 | `FACEBOOK_CALLBACK_RESPONSE` | Modo de respuesta del callback de Facebook. |
 | `API_PREFIX` | Prefijo base opcional de la API. Por defecto vacio para desarrollo con Vite. |
 | `API_PUBLIC_URL` | URL publica del backend para enlaces enviados por email. |
+| `HF_API_KEY` | Token opcional para servicios IA externos. No es requerido para `npm test`. |
+| `HF_IMAGE_MODEL` | Modelo usado por clasificacion de imagen cuando se configura proveedor externo. |
+| `EXIF_MAX_HORAS` | Ventana en horas para considerar reciente la metadata EXIF usada en scoring de evidencias. |
+| `FIREBASE_PROJECT_ID` | Project ID de Firebase para FCM. Opcional en desarrollo/test. |
+| `FIREBASE_CLIENT_EMAIL` | Client email del service account de Firebase. Opcional en desarrollo/test. |
+| `FIREBASE_PRIVATE_KEY` | Private key del service account de Firebase. Opcional en desarrollo/test. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Alternativa opcional para configurar Firebase con el JSON completo del service account. |
 
 ## Estructura real
 
@@ -290,6 +297,18 @@ Tipos permitidos:
 - `video/quicktime`
 
 Los archivos se sirven desde `/uploads`.
+
+## Scoring de evidencias
+
+Al crear reportes con evidencias, el backend calcula un score `confianza_evidencia` entre 0 y 100 usando hashes SHA-256, presencia de contenido, metadata EXIF cuando esta disponible y senales basicas de archivos generados o editados. Si no hay evidencias, el campo queda `NULL`.
+
+La lectura EXIF usa `exifr`, pero el servicio tolera metadata ausente y no depende de llamadas externas para pasar pruebas. En `NODE_ENV=test` no se fuerza analisis EXIF salvo que se configure `ENABLE_EXIF_IN_TESTS`.
+
+## Push FCM
+
+Las notificaciones in-app pueden enviar push por Firebase Cloud Messaging cuando el usuario tiene `push_notifications` activado y existen tokens activos en `fcm_tokens`. Firebase Admin se inicializa de forma lazy solo al enviar un push; si faltan credenciales, el envio se omite sin romper la creacion de la notificacion.
+
+No se deben versionar secretos reales. Para CI y tests no se requieren variables Firebase reales.
 
 ## Preferencias de notificaciones
 

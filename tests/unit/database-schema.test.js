@@ -50,6 +50,7 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
     'ia_etiquetas JSON NULL',
     'ia_confianza DECIMAL(5, 2) NULL',
     'ia_procesado BOOLEAN DEFAULT FALSE',
+    'confianza_evidencia TINYINT UNSIGNED NULL DEFAULT NULL',
     'token_hash CHAR(64) NOT NULL',
     "tipo_asignacion ENUM('principal', 'apoyo')",
     "estado_atencion ENUM('pendiente', 'en_atencion', 'atendido', 'cerrado')",
@@ -64,6 +65,7 @@ test('schema completo incluye indices de prediccion', async () => {
 
   assert.ok(schema.includes('INDEX idx_reportes_estado_created_at (estado, created_at)'));
   assert.ok(schema.includes('INDEX idx_reportes_tipo_created_at (tipo_contaminacion, created_at)'));
+  assert.ok(schema.includes('INDEX idx_reportes_confianza_evidencia (confianza_evidencia)'));
   assert.ok(schema.includes('INDEX idx_reportes_latitud_longitud (latitud, longitud)'));
 });
 
