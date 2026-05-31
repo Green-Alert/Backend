@@ -3,7 +3,10 @@ import { FcmTokenModel } from '../models/fcm-token.model.js';
 let messagingInstance = null;
 let messagingFactoryForTests = null;
 
-const isTestEnv = () => process.env.NODE_ENV === 'test';
+const isTestEnv = () => (
+  process.env.NODE_ENV === 'test' ||
+  process.execArgv.some((arg) => arg === '--test' || arg.startsWith('--test-'))
+);
 
 const normalizePrivateKey = (value) => (
   value ? String(value).replace(/\\n/g, '\n') : value

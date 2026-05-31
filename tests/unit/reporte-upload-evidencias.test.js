@@ -7,7 +7,7 @@ import { EvidenciaModel } from '../../src/models/evidencia.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
 import { AsignacionEntidadesService } from '../../src/services/asignacion-entidades.service.js';
 
-const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const FAKE_FILE_1_SHA256 = 'c30851811a9b8c08b5c9b43c0d0ad77cc30f77188bfdc1bf97599c05e957d370';
 
 const createResponse = () => ({
   statusCode: null,
@@ -27,6 +27,7 @@ const createFile = (index, mimetype = 'image/png') => ({
   filename: `evidencia-${index}.${mimetype.startsWith('video/') ? 'mp4' : 'png'}`,
   originalname: `original-${index}.${mimetype.startsWith('video/') ? 'mp4' : 'png'}`,
   size: 1024 + index,
+  buffer: Buffer.from(`fake-file-${index}`),
 });
 
 const createRequest = (files = [], bodyOverrides = {}) => ({
@@ -74,17 +75,24 @@ test('createReporte guarda multiples imagenes con metadata y orden', async (t) =
 
   assert.equal(res.statusCode, 201);
   assert.equal(EvidenciaModel.create.mock.callCount(), 3);
-  assert.deepEqual(EvidenciaModel.create.mock.calls[1].arguments[0], {
-    id_reporte: 15,
-    id_usuario: 7,
-    tipo_archivo: 'imagen',
-    url_archivo: '/uploads/evidencia-1.png',
-    nombre_original: 'original-1.png',
-    mime_type: 'image/png',
-    tamano_bytes: 1025,
-    hash_sha256: EMPTY_SHA256,
-    orden: 1,
-  });
+  const evidencia = EvidenciaModel.create.mock.calls[1].arguments[0];
+  assert.equal(evidencia.id_reporte, 15);
+  assert.equal(evidencia.id_usuario, 7);
+  assert.equal(evidencia.tipo_archivo, 'imagen');
+  assert.match(evidencia.url_archivo, /^https:\/\/res\.cloudinary\.com\/test\/image\/upload\//);
+  assert.equal(evidencia.nombre_original, 'original-1.png');
+  assert.equal(evidencia.mime_type, 'image/png');
+  assert.equal(evidencia.tamano_bytes, 1025);
+  assert.equal(evidencia.hash_sha256, FAKE_FILE_1_SHA256);
+  assert.equal(evidencia.storage_provider, 'cloudinary');
+  assert.match(evidencia.cloudinary_public_id, /^green-alert\/test\//);
+  assert.match(evidencia.cloudinary_asset_id, /^asset-/);
+  assert.equal(evidencia.cloudinary_resource_type, 'image');
+  assert.match(evidencia.cloudinary_metadata.asset_id, /^asset-/);
+  assert.match(evidencia.cloudinary_metadata.public_id, /^green-alert\/test\//);
+  assert.equal(evidencia.cloudinary_metadata.resource_type, 'image');
+  assert.equal(evidencia.cloudinary_metadata.bytes, 1025);
+  assert.equal(evidencia.orden, 1);
   assert.equal(ReporteModel.create.mock.calls[0].arguments[0].subcategoria, 'rio_contaminado');
   assert.equal(typeof ReporteModel.create.mock.calls[0].arguments[0].confianza_evidencia, 'number');
   assert.equal(next.mock.callCount(), 0);
@@ -145,6 +153,7 @@ test('createReporte permite un video por reporte', async (t) => {
   assert.equal(EvidenciaModel.create.mock.callCount(), 2);
   assert.equal(EvidenciaModel.create.mock.calls[1].arguments[0].tipo_archivo, 'video');
   assert.equal(EvidenciaModel.create.mock.calls[1].arguments[0].mime_type, 'video/mp4');
+  assert.equal(EvidenciaModel.create.mock.calls[1].arguments[0].cloudinary_resource_type, 'video');
 });
 
 test('createReporte rechaza dos videos antes de crear reporte', async (t) => {

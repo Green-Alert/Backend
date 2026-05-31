@@ -14,6 +14,7 @@ import {
   getTrendingReportes,
   toggleLikeReporte,
   analizarImagen,
+  sugerirContenidoReporte,
   getMisReportes,
   updateReporte,
   deleteReporte,
@@ -41,6 +42,7 @@ reporteRouter.get('/trending', optionalAuth, getTrendingReportes);
 reporteRouter.get('/export', verifyToken, requireRoles('admin', 'moderador'), exportReportes);
 reporteRouter.get('/mis-reportes', verifyToken, getMisReportes);
 reporteRouter.post('/analizar-imagen', verifyToken, upload.single('imagen'), analizarImagen);
+reporteRouter.post('/sugerir-contenido', verifyToken, uploadMultiple, sugerirContenidoReporte);
 reporteRouter.get('/', optionalAuth, getReportes);
 reporteRouter.post('/:id/like', validatePositiveIdParam('id'), verifyToken, toggleLikeReporte);
 reporteRouter.get('/:id/evidencias', validatePositiveIdParam('id'), verifyToken, listEvidenciasReporte);

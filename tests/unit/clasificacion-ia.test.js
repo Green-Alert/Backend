@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clasificarImagen } from '../../src/services/clasificacion.service.js';
-import { analizarImagen, createReporte } from '../../src/controllers/reporte.controller.js';
+import { analizarImagen, createReporte, sugerirContenidoReporte } from '../../src/controllers/reporte.controller.js';
 import { CategoriaRiesgoModel } from '../../src/models/categoria-riesgo.model.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
 import { normalizeReporteIA, ReporteModel } from '../../src/models/reporte.model.js';
@@ -108,6 +108,28 @@ test('analizarImagen clasifica y borra archivo temporal', async (t) => {
   assert.equal(res.body.data.nombre, 'Contaminacion de Agua');
   assert.equal(res.body.data.severidad, 'alto');
   await assert.rejects(() => fs.access(tempPath));
+  assert.equal(next.mock.callCount(), 0);
+});
+
+test('sugerirContenidoReporte genera titulo y descripcion desde imagen', async (t) => {
+  const req = {
+    body: { categoria: 'agua' },
+    files: {
+      files: [{
+        originalname: 'rio-contaminado.jpg',
+        mimetype: 'image/jpeg',
+      }],
+    },
+  };
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await sugerirContenidoReporte(req, res, next);
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.data.titulo.length >= 5);
+  assert.ok(res.body.data.descripcion.length >= 10);
+  assert.equal(res.body.data.categoria, 'agua');
   assert.equal(next.mock.callCount(), 0);
 });
 
