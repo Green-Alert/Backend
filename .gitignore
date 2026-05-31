@@ -26,6 +26,7 @@ build/
 uploads/
 uploads/*
 !uploads/.gitkeep
+certs/
 
 # IDE
 .vscode/

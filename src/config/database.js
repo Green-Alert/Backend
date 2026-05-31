@@ -1,7 +1,35 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
+
+const readSslCa = () => {
+  if (process.env.DB_SSL_CA) {
+    return process.env.DB_SSL_CA.replace(/\\n/g, '\n');
+  }
+
+  if (process.env.DB_SSL_CA_PATH) {
+    if (!fs.existsSync(process.env.DB_SSL_CA_PATH)) {
+      console.warn(`certificado SSL de base de datos no encontrado: ${process.env.DB_SSL_CA_PATH}`);
+      return undefined;
+    }
+
+    return fs.readFileSync(process.env.DB_SSL_CA_PATH, 'utf8');
+  }
+
+  return undefined;
+};
+
+const getSslConfig = () => {
+  if (process.env.DB_SSL !== 'true') return undefined;
+
+  const ca = readSslCa();
+
+  return ca
+    ? { ca, rejectUnauthorized: true }
+    : { rejectUnauthorized: true };
+};
 
 // pool de conexiones reutilizables
 const pool = mysql.createPool({
@@ -10,6 +38,7 @@ const pool = mysql.createPool({
   user:             process.env.DB_USER,
   password:         process.env.DB_PASSWORD,
   database:         process.env.DB_NAME,
+  ssl:              getSslConfig(),
   connectionLimit:  10,
   waitForConnections: true,
   queueLimit:       0,
