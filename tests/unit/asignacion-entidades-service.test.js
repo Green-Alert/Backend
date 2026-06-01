@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolverAsignacionesEntidades } from '../../src/services/asignacion-entidades.service.js';
+import {
+  ENTIDADES_INSTITUCIONALES_CODIGOS,
+  isEntidadInstitucionalPermitida,
+} from '../../src/models/entidad.model.js';
 
 const codigos = (reporte) => resolverAsignacionesEntidades(reporte).map((item) => item.codigo);
 const principal = (reporte) => resolverAsignacionesEntidades(reporte)[0];
@@ -55,4 +59,21 @@ test('no duplica entidades cuando palabra clave y categoria coinciden', () => {
 
   const asignaciones = resolverAsignacionesEntidades(reporte);
   assert.equal(new Set(asignaciones.map((item) => item.codigo)).size, asignaciones.length);
+});
+
+test('solo permite entidades institucionales priorizadas para asignaciones manuales', () => {
+  assert.deepEqual(ENTIDADES_INSTITUCIONALES_CODIGOS, [
+    'bomberos',
+    'corpoamazonia',
+    'gestion_riesgo',
+    'secretaria_salud',
+    'alcaldia_servicios_publicos',
+  ]);
+
+  for (const codigo of ENTIDADES_INSTITUCIONALES_CODIGOS) {
+    assert.equal(isEntidadInstitucionalPermitida(codigo), true);
+  }
+
+  assert.equal(isEntidadInstitucionalPermitida('gobernacion_putumayo'), false);
+  assert.equal(isEntidadInstitucionalPermitida('parques_nacionales'), false);
 });

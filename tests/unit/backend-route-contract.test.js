@@ -72,6 +72,7 @@ test('rutas consumidas por el cliente estan declaradas en backend', async () => 
     { router: 'reporteRouter', method: 'delete', route: '/:id' },
     { router: 'reporteRouter', method: 'get', route: '/export' },
     { router: 'reporteRouter', method: 'post', route: '/:id/like' },
+    { router: 'reporteRouter', method: 'post', route: '/:id/asignaciones' },
     { router: 'reporteRouter', method: 'get', route: '/trending' },
     { router: 'reporteRouter', method: 'get', route: '/zonas-riesgo' },
     { router: 'reporteRouter', method: 'get', route: '/alertas-predictivas' },
@@ -91,6 +92,7 @@ test('rutas consumidas por el cliente estan declaradas en backend', async () => 
     { router: 'notificacionRouter', method: 'patch', route: '/marcar-todas' },
     { router: 'notificacionRouter', method: 'delete', route: '/:uuid' },
     { router: 'entidadRouter', method: 'get', route: '/' },
+    { router: 'entidadRouter', method: 'get', route: '/:id/reportes' },
     { router: 'entidadRouter', method: 'get', route: '/mis-reportes' },
     { router: 'entidadRouter', method: 'get', route: '/mis-reportes/:id' },
     { router: 'entidadRouter', method: 'patch', route: '/mis-reportes/:id/atencion' },
@@ -116,6 +118,7 @@ test('rutas privadas y administrativas declaran middleware de autenticacion y ro
   assert.match(adminRoutes, /adminRouter\.use\(verifyToken,\s*requireRoles\('admin'\)\)/);
   assert.match(notificacionRoutes, /notificacionRouter\.use\(verifyToken\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\('\/',\s*verifyToken,\s*requireRoles\('admin', 'moderador', 'entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/:id\/reportes'[\s\S]*verifyToken[\s\S]*requireRoles\('admin', 'moderador', 'entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\('\/mis-reportes',\s*verifyToken,\s*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-reportes\/:id'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-reportes\/:id\/atencion'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
@@ -130,6 +133,7 @@ test('rutas privadas y administrativas declaran middleware de autenticacion y ro
   assert.match(reporteRoutes, /reporteRouter\.get\('\/mis-reportes',\s*verifyToken/);
   assert.match(reporteRoutes, /reporteRouter\.post\('\/analizar-imagen',\s*verifyToken/);
   assert.match(reporteRoutes, /reporteRouter\.post\('\/:id\/like',[\s\S]*verifyToken/);
+  assert.match(reporteRoutes, /reporteRouter\.post\([\s\S]*'\/:id\/asignaciones'[\s\S]*verifyToken[\s\S]*requireRoles\('admin', 'moderador'\)/);
   assert.match(reporteRoutes, /reporteRouter\.patch\('\/:id',[\s\S]*verifyToken/);
   assert.match(reporteRoutes, /reporteRouter\.delete\('\/:id',[\s\S]*verifyToken/);
 

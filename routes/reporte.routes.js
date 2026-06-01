@@ -13,6 +13,7 @@ import {
   getStatsIA,
   getTrendingReportes,
   toggleLikeReporte,
+  asignarEntidadReporte,
   analizarImagen,
   sugerirContenidoReporte,
   getMisReportes,
@@ -45,6 +46,13 @@ reporteRouter.post('/analizar-imagen', verifyToken, upload.single('imagen'), ana
 reporteRouter.post('/sugerir-contenido', verifyToken, uploadMultiple, sugerirContenidoReporte);
 reporteRouter.get('/', optionalAuth, getReportes);
 reporteRouter.post('/:id/like', validatePositiveIdParam('id'), verifyToken, toggleLikeReporte);
+reporteRouter.post(
+  '/:id/asignaciones',
+  validatePositiveIdParam('id'),
+  verifyToken,
+  requireRoles('admin', 'moderador'),
+  asignarEntidadReporte
+);
 reporteRouter.get('/:id/evidencias', validatePositiveIdParam('id'), verifyToken, listEvidenciasReporte);
 reporteRouter.post('/:id/evidencias', validatePositiveIdParam('id'), verifyToken, upload.single('file'), addEvidenciaReporte);
 reporteRouter.delete(

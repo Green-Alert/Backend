@@ -41,6 +41,42 @@ export const listarMisReportesEntidad = async (req, res, next) => {
   }
 };
 
+export const listarReportesPorEntidad = async (req, res, next) => {
+  try {
+    const idEntidad = Number(req.params.id);
+    if (!idEntidad) {
+      return errorResponse(res, 'Id de entidad invalido.', 400);
+    }
+
+    if (req.user?.rol === 'entidad' && Number(req.user.id_entidad) !== idEntidad) {
+      return errorResponse(res, 'No tienes permiso para consultar esta entidad.', 403);
+    }
+
+    const entidad = await EntidadModel.findActiveAllowedByIdOrCodigo({ id_entidad: idEntidad });
+    if (!entidad) {
+      return errorResponse(res, 'Entidad no encontrada, inactiva o fuera de alcance.', 404);
+    }
+
+    const data = await ReporteEntidadModel.findByEntidad(idEntidad, {
+      prioridad: req.query?.prioridad,
+      estado_atencion: req.query?.estado_atencion,
+      tipo_asignacion: req.query?.tipo_asignacion,
+      categoria: req.query?.categoria,
+      severidad: req.query?.severidad,
+      limit: req.query?.limit,
+      offset: req.query?.offset,
+    });
+
+    return successResponse(
+      res,
+      { entidad, ...data },
+      'Reportes asignados a entidad obtenidos correctamente.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const obtenerMiReporteEntidad = async (req, res, next) => {
   try {
     const idEntidad = getEntidadIdFromUser(req);

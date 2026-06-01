@@ -8,6 +8,7 @@ import fs from 'node:fs/promises';
 import { CategoriaRiesgoModel } from '../models/categoria-riesgo.model.js';
 import { UsuarioModel }   from '../models/usuario.model.js';
 import { EvidenciaModel } from '../models/evidencia.model.js';
+import { EntidadModel } from '../models/entidad.model.js';
 import { LikeModel } from '../models/like.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { analyzeReporte } from '../services/ia.service.js';
@@ -774,6 +775,64 @@ export const toggleLikeReporte = async (req, res, next) => {
       res,
       result,
       result.liked ? 'Like registrado.' : 'Like retirado.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const asignarEntidadReporte = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const { id_entidad, codigo_entidad, comentario = null } = req.body ?? {};
+
+    const reporte = await ReporteModel.findById(id);
+    if (!reporte) return errorResponse(res, 'Reporte no encontrado.', 404);
+
+    const entidad = await EntidadModel.findActiveAllowedByIdOrCodigo({
+      id_entidad: id_entidad ? Number(id_entidad) : null,
+      codigo: codigo_entidad,
+    });
+
+    if (!entidad) {
+      return errorResponse(
+        res,
+        'Entidad invalida, inactiva o fuera del alcance institucional definido.',
+        400
+      );
+    }
+
+    await ReporteEntidadModel.createAssignment({
+      id_reporte: id,
+      id_entidad: entidad.id_entidad,
+      tipo_asignacion: 'principal',
+      prioridad: 'media',
+      estado_atencion: 'pendiente',
+      comentario: typeof comentario === 'string' ? comentario.trim() || null : null,
+    });
+
+    const asignacion = await ReporteEntidadModel.findOneByReporteAndEntidad(
+      id,
+      entidad.id_entidad
+    );
+
+    if (reporte.id_usuario) {
+      await crearNotificacion({
+        id_usuario: reporte.id_usuario,
+        tipo: 'reporte_asignado_entidad',
+        titulo: 'Reporte asignado a entidad responsable',
+        mensaje: `Tu reporte "${reporte.titulo}" fue asignado a ${entidad.nombre}.`,
+        referencia_tipo: 'reporte',
+        referencia_uuid: reporte.uuid,
+        link: buildReporteLink(reporte),
+      });
+    }
+
+    return successResponse(
+      res,
+      { reporte, entidad, asignacion },
+      'Reporte asignado a entidad correctamente.',
+      201
     );
   } catch (error) {
     return next(error);

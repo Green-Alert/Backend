@@ -5,6 +5,7 @@ let messagingFactoryForTests = null;
 
 const isTestEnv = () => (
   process.env.NODE_ENV === 'test' ||
+  typeof process.env.NODE_TEST_CONTEXT === 'string' ||
   process.execArgv.some((arg) => arg === '--test' || arg.startsWith('--test-'))
 );
 
