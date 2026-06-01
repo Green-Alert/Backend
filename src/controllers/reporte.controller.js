@@ -13,6 +13,7 @@ import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { analyzeReporte } from '../services/ia.service.js';
 import { clasificarImagen } from '../services/clasificacion.service.js';
 import { calcularScoreEvidencias } from '../services/evidencia-score.service.js';
+import { deleteFileByPublicId, uploadFileBuffer } from '../services/cloudinary.service.js';
 import { invalidatePrediccionCache } from '../services/prediccion.service.js';
 import { AsignacionEntidadesService } from '../services/asignacion-entidades.service.js';
 import { errorResponse, successResponse } from '../utils/response.js';
@@ -132,6 +133,136 @@ const validateReporteEvidenceFiles = (files) => {
   }
 
   return null;
+};
+
+const buildContenidoSugerido = ({ categoria = 'otro', nombre = 'Otro', subcategoria = null }) => {
+  const label = nombre || categoria || 'incidencia ambiental';
+  const detail = subcategoria ? ` asociada a ${subcategoria}` : '';
+
+  return {
+    titulo: `${label}${detail} reportada en la zona`.slice(0, 80),
+    descripcion:
+      `Se reporta una posible situacion de ${label.toLowerCase()}${detail} en el sector indicado. ` +
+      'La evidencia adjunta muestra condiciones que requieren revision por parte de la comunidad o las autoridades competentes. ' +
+      'Se solicita verificar el sitio, evaluar el nivel de afectacion y tomar las medidas necesarias.',
+  };
+};
+
+export const sugerirContenidoReporte = async (req, res, next) => {
+  try {
+    const files = getUploadedFiles(req);
+
+    if (files.length === 0) {
+      return errorResponse(res, 'Debes adjuntar al menos una imagen para generar la sugerencia.', 400);
+    }
+
+    const firstImage = files.find((file) => file.mimetype?.startsWith('image/'));
+    if (!firstImage) {
+      return errorResponse(res, 'La sugerencia solo acepta imagenes.', 400);
+    }
+
+    const analysis = await clasificarImagen({
+      ...firstImage,
+      originalname: `${req.body?.categoria || ''} ${firstImage.originalname || ''}`.trim(),
+    });
+    const contenido = buildContenidoSugerido(analysis);
+
+    return successResponse(
+      res,
+      {
+        ...contenido,
+        categoria: analysis.categoria,
+        subcategoria: analysis.subcategoria,
+        confianza: analysis.confianza,
+        etiquetas: analysis.etiquetas,
+      },
+      'Contenido sugerido correctamente.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getEvidenceTypeFromFile = (file) => (
+  file.mimetype?.startsWith('video/') ? 'video' : 'imagen'
+);
+
+const getCloudinaryResourceType = (file, uploadResult) => (
+  uploadResult.resource_type || (file.mimetype?.startsWith('video/') ? 'video' : 'image')
+);
+
+const buildCloudinaryMetadata = (uploadResult) => ({
+  asset_id: uploadResult.asset_id ?? null,
+  public_id: uploadResult.public_id ?? null,
+  resource_type: uploadResult.resource_type ?? null,
+  format: uploadResult.format ?? null,
+  bytes: uploadResult.bytes ?? null,
+  width: uploadResult.width ?? null,
+  height: uploadResult.height ?? null,
+  duration: uploadResult.duration ?? null,
+  version: uploadResult.version ?? null,
+  created_at: uploadResult.created_at ?? null,
+});
+
+const uploadEvidenceToCloudinary = async (file, {
+  idReporte,
+  idUsuario,
+  orden,
+  hashSha256 = null,
+}) => {
+  const uploadResult = await uploadFileBuffer({
+    buffer: file.buffer,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size,
+  });
+
+  return {
+    uploadResult,
+    evidencia: {
+      id_reporte: idReporte,
+      id_usuario: idUsuario,
+      tipo_archivo: getEvidenceTypeFromFile(file),
+      url_archivo: uploadResult.secure_url,
+      nombre_original: file.originalname,
+      mime_type: file.mimetype,
+      tamano_bytes: file.size,
+      hash_sha256: hashSha256,
+      storage_provider: 'cloudinary',
+      cloudinary_public_id: uploadResult.public_id,
+      cloudinary_asset_id: uploadResult.asset_id ?? null,
+      cloudinary_resource_type: getCloudinaryResourceType(file, uploadResult),
+      cloudinary_metadata: buildCloudinaryMetadata(uploadResult),
+      orden,
+    },
+  };
+};
+
+const cleanupCloudinaryUploads = async (uploads) => {
+  await Promise.allSettled(
+    uploads
+      .filter((upload) => upload?.public_id)
+      .map((upload) => deleteFileByPublicId(upload.public_id, {
+        resourceType: upload.resource_type || 'image',
+      }))
+  );
+};
+
+const shouldDeleteFromCloudinary = (evidencia) => (
+  evidencia?.storage_provider === 'cloudinary' &&
+  typeof evidencia.cloudinary_public_id === 'string' &&
+  evidencia.cloudinary_public_id.trim().length > 0
+);
+
+const deleteEvidenceCloudinaryAsset = async (evidencia) => {
+  if (!shouldDeleteFromCloudinary(evidencia)) {
+    return;
+  }
+
+  const resourceType = evidencia.cloudinary_resource_type ||
+    (evidencia.tipo_archivo === 'video' ? 'video' : 'image');
+
+  await deleteFileByPublicId(evidencia.cloudinary_public_id, { resourceType });
 };
 
 const parseBooleanLike = (value) => (
@@ -337,19 +468,22 @@ export const createReporte = async (req, res, next) => {
     await ReporteModel.updateIaAnalysis(idReporte, iaAnalysis);
     reporte = await ReporteModel.findById(idReporte);
 
-    for (const [index, file] of uploadedFiles.entries()) {
-      const tipo = file.mimetype.startsWith('video/') ? 'video' : 'imagen';
-      await EvidenciaModel.create({
-        id_reporte:      idReporte,
-        id_usuario:      req.user.sub,
-        tipo_archivo:    tipo,
-        url_archivo:     `/uploads/${file.filename}`,
-        nombre_original: file.originalname,
-        mime_type:       file.mimetype,
-        tamano_bytes:    file.size,
-        hash_sha256:     hashesEvidencias.get(index) ?? null,
-        orden:           index,
-      });
+    const cloudinaryUploads = [];
+    try {
+      for (const [index, file] of uploadedFiles.entries()) {
+        const { uploadResult, evidencia } = await uploadEvidenceToCloudinary(file, {
+          idReporte,
+          idUsuario: req.user.sub,
+          hashSha256: hashesEvidencias.get(index) ?? null,
+          orden: index,
+        });
+
+        cloudinaryUploads.push(uploadResult);
+        await EvidenciaModel.create(evidencia);
+      }
+    } catch (error) {
+      await cleanupCloudinaryUploads(cloudinaryUploads);
+      throw error;
     }
 
     try {
@@ -894,19 +1028,21 @@ export const addEvidenciaReporte = async (req, res, next) => {
       return errorResponse(res, 'Archivo de evidencia requerido.', 400);
     }
 
-    const tipo = req.file.mimetype.startsWith('video/') ? 'video' : 'imagen';
     const scoreEvidencia = await calcularScoreEvidencias([req.file], reporte.nivel_severidad);
-    const idEvidencia = await EvidenciaModel.create({
-      id_reporte: reporte.id_reporte,
-      id_usuario: req.user.sub,
-      tipo_archivo: tipo,
-      url_archivo: `/uploads/${req.file.filename}`,
-      nombre_original: req.file.originalname,
-      mime_type: req.file.mimetype,
-      tamano_bytes: req.file.size,
-      hash_sha256: scoreEvidencia.evidencias[0]?.hash_sha256 ?? null,
+    const { uploadResult, evidencia: evidenciaPayload } = await uploadEvidenceToCloudinary(req.file, {
+      idReporte: reporte.id_reporte,
+      idUsuario: req.user.sub,
+      hashSha256: scoreEvidencia.evidencias[0]?.hash_sha256 ?? null,
       orden: 0,
     });
+
+    let idEvidencia;
+    try {
+      idEvidencia = await EvidenciaModel.create(evidenciaPayload);
+    } catch (error) {
+      await cleanupCloudinaryUploads([uploadResult]);
+      throw error;
+    }
 
     const evidencia = await EvidenciaModel.findById(idEvidencia);
 
@@ -931,6 +1067,17 @@ export const deleteEvidenciaReporte = async (req, res, next) => {
 
     if (!evidencia || Number(evidencia.id_reporte) !== Number(reporte.id_reporte)) {
       return errorResponse(res, 'Evidencia no encontrada.', 404);
+    }
+
+    try {
+      await deleteEvidenceCloudinaryAsset(evidencia);
+    } catch (error) {
+      console.error('[cloudinary] no se pudo eliminar evidencia:', error.message);
+      return errorResponse(
+        res,
+        'No se pudo eliminar el archivo asociado en Cloudinary. Intenta nuevamente.',
+        502
+      );
     }
 
     await EvidenciaModel.remove(evidenciaId);

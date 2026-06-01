@@ -1,0 +1,40 @@
+name: green-alert-backend
+
+services:
+  backend:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_SSL: ${DB_SSL:-true}
+      DB_SSL_CA_PATH: ${DB_SSL_CA_PATH:-/certs/ca.pem}
+      DB_SSL_CA: ${DB_SSL_CA:-}
+      DB_SSL_REJECT_UNAUTHORIZED: ${DB_SSL_REJECT_UNAUTHORIZED:-true}
+      UPLOAD_DIR: ./uploads
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3000}
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-json}
+    ports:
+      - "3000:3000"
+    volumes:
+      - backend_uploads:/app/uploads
+      - ./certs:/certs:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(()=>process.exit(0)).catch(()=>process.exit(1))"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  backend_uploads:

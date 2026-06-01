@@ -192,11 +192,16 @@ CREATE TABLE IF NOT EXISTS evidencias (
   id_reporte BIGINT UNSIGNED NOT NULL,
   id_usuario BIGINT UNSIGNED NOT NULL,
   tipo_archivo VARCHAR(50) NULL,
-  url_archivo VARCHAR(255) NOT NULL,
+  url_archivo VARCHAR(512) NOT NULL,
   nombre_original VARCHAR(255) NULL,
   mime_type VARCHAR(100) NULL,
   tamano_bytes BIGINT NULL,
   hash_sha256 VARCHAR(64) NULL,
+  storage_provider ENUM('local', 'cloudinary') NOT NULL DEFAULT 'cloudinary',
+  cloudinary_public_id VARCHAR(255) NULL,
+  cloudinary_asset_id VARCHAR(255) NULL,
+  cloudinary_resource_type VARCHAR(50) NULL,
+  cloudinary_metadata JSON NULL,
   metadatos_exif JSON NULL,
   ia_analisis TEXT NULL,
   ia_procesado BOOLEAN DEFAULT FALSE,
@@ -216,6 +221,8 @@ CREATE TABLE IF NOT EXISTS evidencias (
   INDEX idx_reporte (id_reporte),
   INDEX idx_usuario (id_usuario),
   INDEX idx_hash_sha256 (hash_sha256),
+  INDEX idx_storage_provider (storage_provider),
+  INDEX idx_cloudinary_public_id (cloudinary_public_id),
   INDEX idx_created_at (created_at),
   INDEX idx_orden (orden),
   INDEX idx_deleted_at (deleted_at)
@@ -367,14 +374,30 @@ GROUP BY r.id_reporte, r.uuid, r.titulo, r.estado, r.municipio;
 -- SEED DATA (Sample categories)
 -- ============================================================================
 
-INSERT IGNORE INTO entidades
+INSERT INTO entidades
 (nombre, codigo, descripcion)
 VALUES
 ('Bomberos', 'bomberos', 'Entidad encargada de la atencion de incendios, quemas activas, emergencias, explosiones, derrames peligrosos y materiales inflamables.'),
 ('Corpoamazonia', 'corpoamazonia', 'Autoridad ambiental regional encargada de contaminacion ambiental, vertimientos, tala ilegal, deforestacion, fauna, flora, mineria ilegal y afectaciones a ecosistemas.'),
 ('Gestion del Riesgo', 'gestion_riesgo', 'Entidad encargada de amenazas, emergencias, desastres naturales, avalanchas, deslizamientos, inundaciones, crecientes subitas, derrames graves y eventos criticos.'),
 ('Secretaria de Salud', 'secretaria_salud', 'Entidad encargada de riesgos sanitarios, basuras con afectacion a la salud publica, aguas residuales, malos olores, residuos hospitalarios y proliferacion de vectores.'),
-('Alcaldia / Servicios Publicos', 'alcaldia_servicios_publicos', 'Entidad encargada de la atencion operativa de residuos urbanos, basura en via publica, escombros, alcantarillado, espacio publico y mantenimiento municipal.');
+('Alcaldia / Servicios Publicos', 'alcaldia_servicios_publicos', 'Entidad encargada de la atencion operativa de residuos urbanos, basura en via publica, escombros, alcantarillado, espacio publico y mantenimiento municipal.')
+ON DUPLICATE KEY UPDATE
+  nombre = VALUES(nombre),
+  descripcion = VALUES(descripcion),
+  activo = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+UPDATE entidades
+SET activo = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE codigo NOT IN (
+  'bomberos',
+  'corpoamazonia',
+  'gestion_riesgo',
+  'secretaria_salud',
+  'alcaldia_servicios_publicos'
+);
 
 INSERT IGNORE INTO categorias_riesgo 
 (id_categoria, codigo, nombre, descripcion, icono, color_hex, nivel_prioridad_default, activo) 

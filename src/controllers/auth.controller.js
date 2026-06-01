@@ -23,6 +23,8 @@ import {
   createOAuthCallbackCode,
 } from '../services/oauth-callback-code.service.js';
 import { getApiPrefix } from '../config/api-prefix.config.js';
+import { getCloudinaryConfig } from '../config/cloudinary.config.js';
+import { deleteFileByPublicId, uploadFileBuffer } from '../services/cloudinary.service.js';
 
 /**
  * ESTRATEGIA DE AUTENTICACIÓN CON FACEBOOK
@@ -262,11 +264,6 @@ const buildEmailVerificationLink = (token) => {
 };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
-
-const buildPublicUploadUrl = (filename) => {
-  const apiBaseUrl = process.env.API_PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
-  return `${apiBaseUrl.replace(/\/+$/, '')}/uploads/${filename}`;
-};
 
 const buildOtpEmailHtml = ({ user, otpCode }) => generarTemplateBaseCorreo({
   title: 'Verifica tu correo',
@@ -606,10 +603,30 @@ export const updateAvatar = async (req, res, next) => {
       return errorResponse(res, 'Imagen de avatar requerida.', 400);
     }
 
-    const avatarUrl = buildPublicUploadUrl(req.file.filename);
-    const updatedUser = await UsuarioModel.updateAvatar(id_usuario, avatarUrl);
+    const cloudinaryConfig = getCloudinaryConfig({ requireCredentials: true });
+    const uploadResult = await uploadFileBuffer({
+      buffer: req.file.buffer,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      folder: cloudinaryConfig.avatarFolder,
+      publicId: `usuario-${id_usuario}-${Date.now()}`,
+    });
+
+    let updatedUser;
+    try {
+      updatedUser = await UsuarioModel.updateAvatar(id_usuario, uploadResult.secure_url);
+    } catch (error) {
+      await deleteFileByPublicId(uploadResult.public_id, {
+        resourceType: uploadResult.resource_type || 'image',
+      }).catch(() => {});
+      throw error;
+    }
 
     if (!updatedUser) {
+      await deleteFileByPublicId(uploadResult.public_id, {
+        resourceType: uploadResult.resource_type || 'image',
+      }).catch(() => {});
       return errorResponse(res, 'Usuario no encontrado.', 404);
     }
 

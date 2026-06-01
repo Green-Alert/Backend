@@ -45,6 +45,17 @@ ON DUPLICATE KEY UPDATE
   activo = TRUE,
   updated_at = CURRENT_TIMESTAMP;
 
+UPDATE entidades
+SET activo = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE codigo NOT IN (
+  'bomberos',
+  'corpoamazonia',
+  'gestion_riesgo',
+  'secretaria_salud',
+  'alcaldia_servicios_publicos'
+);
+
 SET @has_id_entidad = (
   SELECT COUNT(*)
   FROM INFORMATION_SCHEMA.COLUMNS

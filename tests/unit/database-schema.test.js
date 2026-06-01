@@ -51,6 +51,11 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
     'ia_confianza DECIMAL(5, 2) NULL',
     'ia_procesado BOOLEAN DEFAULT FALSE',
     'confianza_evidencia TINYINT UNSIGNED NULL DEFAULT NULL',
+    "storage_provider ENUM('local', 'cloudinary')",
+    'cloudinary_public_id VARCHAR(255) NULL',
+    'cloudinary_asset_id VARCHAR(255) NULL',
+    'cloudinary_resource_type VARCHAR(50) NULL',
+    'cloudinary_metadata JSON NULL',
     'token_hash CHAR(64) NOT NULL',
     "tipo_asignacion ENUM('principal', 'apoyo')",
     "estado_atencion ENUM('pendiente', 'en_atencion', 'atendido', 'cerrado')",
@@ -67,6 +72,25 @@ test('schema completo incluye indices de prediccion', async () => {
   assert.ok(schema.includes('INDEX idx_reportes_tipo_created_at (tipo_contaminacion, created_at)'));
   assert.ok(schema.includes('INDEX idx_reportes_confianza_evidencia (confianza_evidencia)'));
   assert.ok(schema.includes('INDEX idx_reportes_latitud_longitud (latitud, longitud)'));
+});
+
+test('schema completo consolida solo las entidades institucionales priorizadas', async () => {
+  const schema = await readSchema();
+
+  for (const codigo of [
+    'bomberos',
+    'corpoamazonia',
+    'gestion_riesgo',
+    'secretaria_salud',
+    'alcaldia_servicios_publicos',
+  ]) {
+    assert.ok(schema.includes(`'${codigo}'`), codigo);
+  }
+
+  assert.ok(schema.includes('ON DUPLICATE KEY UPDATE'));
+  assert.ok(schema.includes('WHERE codigo NOT IN'));
+  assert.doesNotMatch(schema, /gobernaci/i);
+  assert.doesNotMatch(schema, /parques/i);
 });
 
 test('migraciones no tienen numeracion duplicada ni scripts sueltos de notificaciones', async () => {

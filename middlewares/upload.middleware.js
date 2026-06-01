@@ -1,21 +1,9 @@
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import fs from 'fs';
-import { getMaxFileSize, getUploadDir } from '../src/config/upload.config.js';
+import { getMaxFileSize } from '../src/config/upload.config.js';
 
-const uploadsDir = getUploadDir();
-
-// Crear carpeta si no existe
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, crypto.randomUUID() + ext);
-  },
-});
+const storage = multer.memoryStorage();
 
 const ALLOWED_MIME = [
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
@@ -32,11 +20,52 @@ export const fileFilter = (_req, file, cb) => {
   return cb(error);
 };
 
-export const upload = multer({
+const baseUpload = multer({
   storage,
   limits: { fileSize: getMaxFileSize() },
   fileFilter,
 });
+
+const assignCompatibleFilename = (file) => {
+  if (!file || file.filename) return file;
+
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  file.filename = `${crypto.randomUUID()}${ext}`;
+  return file;
+};
+
+const decorateUploadedFiles = (req) => {
+  assignCompatibleFilename(req.file);
+
+  if (Array.isArray(req.files)) {
+    req.files.forEach(assignCompatibleFilename);
+    return;
+  }
+
+  if (req.files && typeof req.files === 'object') {
+    Object.values(req.files)
+      .flat()
+      .forEach(assignCompatibleFilename);
+  }
+};
+
+const wrapUploadMiddleware = (middleware) => (req, res, next) => {
+  middleware(req, res, (error) => {
+    if (error) {
+      return next(error);
+    }
+
+    decorateUploadedFiles(req);
+    return next();
+  });
+};
+
+export const upload = {
+  single: (...args) => wrapUploadMiddleware(baseUpload.single(...args)),
+  array: (...args) => wrapUploadMiddleware(baseUpload.array(...args)),
+  fields: (...args) => wrapUploadMiddleware(baseUpload.fields(...args)),
+  none: (...args) => wrapUploadMiddleware(baseUpload.none(...args)),
+};
 
 export const uploadMultiple = upload.fields([
   { name: 'file', maxCount: 1 },

@@ -26,6 +26,7 @@ const expectedFrontendContracts = [
   { method: 'get', path: '/reportes' },
   { method: 'get', path: '/reportes/${id}' },
   { method: 'post', path: '/reportes/analizar-imagen' },
+  { method: 'post', path: '/reportes/sugerir-contenido' },
   { method: 'patch', path: '/reportes/${id}' },
   { method: 'delete', path: '/reportes/${id}' },
   { method: 'get', path: '/reportes/export' },

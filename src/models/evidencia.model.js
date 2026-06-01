@@ -14,7 +14,9 @@ export const EvidenciaModel = {
     const [rows] = await pool.execute(
       `SELECT id_evidencia, uuid, id_usuario, tipo_archivo,
               url_archivo, nombre_original, mime_type, tamano_bytes,
-              hash_sha256, verificado, orden, created_at
+              hash_sha256, storage_provider, cloudinary_public_id,
+              cloudinary_asset_id, cloudinary_resource_type, cloudinary_metadata,
+              verificado, orden, created_at
        FROM evidencias
        WHERE id_reporte = ? ${deletedFilter}
        ORDER BY orden ASC, created_at ASC`,
@@ -30,7 +32,9 @@ export const EvidenciaModel = {
     const [rows] = await pool.execute(
       `SELECT id_evidencia, uuid, id_reporte, id_usuario, tipo_archivo,
               url_archivo, nombre_original, mime_type, tamano_bytes,
-              hash_sha256, verificado, orden, created_at
+              hash_sha256, storage_provider, cloudinary_public_id,
+              cloudinary_asset_id, cloudinary_resource_type, cloudinary_metadata,
+              verificado, orden, created_at
        FROM evidencias
        WHERE id_evidencia = ? ${deletedFilter}
        LIMIT 1`,
@@ -52,18 +56,28 @@ export const EvidenciaModel = {
     mime_type,
     tamano_bytes,
     hash_sha256 = null,
+    storage_provider = 'cloudinary',
+    cloudinary_public_id = null,
+    cloudinary_asset_id = null,
+    cloudinary_resource_type = null,
+    cloudinary_metadata = null,
     orden = 0,
   }) => {
     const uuid = randomUUID();
     const [result] = await pool.execute(
       `INSERT INTO evidencias
          (uuid, id_reporte, id_usuario, tipo_archivo, url_archivo, nombre_original,
-          mime_type, tamano_bytes, hash_sha256, orden)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          mime_type, tamano_bytes, hash_sha256, storage_provider,
+          cloudinary_public_id, cloudinary_asset_id, cloudinary_resource_type,
+          cloudinary_metadata, orden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         uuid,
         id_reporte, id_usuario, tipo_archivo, url_archivo, nombre_original,
-        mime_type, tamano_bytes, hash_sha256, orden,
+        mime_type, tamano_bytes, hash_sha256, storage_provider,
+        cloudinary_public_id, cloudinary_asset_id, cloudinary_resource_type,
+        cloudinary_metadata ? JSON.stringify(cloudinary_metadata) : null,
+        orden,
       ]
     );
     return result.insertId;
