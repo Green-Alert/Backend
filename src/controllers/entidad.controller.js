@@ -3,7 +3,7 @@ import { EvidenciaModel } from '../models/evidencia.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 
-const getEntidadIdFromUser = (req) => Number(req.user?.id_entidad);
+const getEntidadIdFromUser = (req) => Number(req.user?.id_entidad ?? req.user?.entidad_id);
 
 export const listarEntidades = async (_req, res, next) => {
   try {
@@ -48,7 +48,7 @@ export const listarReportesPorEntidad = async (req, res, next) => {
       return errorResponse(res, 'Id de entidad invalido.', 400);
     }
 
-    if (req.user?.rol === 'entidad' && Number(req.user.id_entidad) !== idEntidad) {
+    if (req.user?.rol === 'entidad' && getEntidadIdFromUser(req) !== idEntidad) {
       return errorResponse(res, 'No tienes permiso para consultar esta entidad.', 403);
     }
 
