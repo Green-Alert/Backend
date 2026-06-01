@@ -374,14 +374,30 @@ GROUP BY r.id_reporte, r.uuid, r.titulo, r.estado, r.municipio;
 -- SEED DATA (Sample categories)
 -- ============================================================================
 
-INSERT IGNORE INTO entidades
+INSERT INTO entidades
 (nombre, codigo, descripcion)
 VALUES
 ('Bomberos', 'bomberos', 'Entidad encargada de la atencion de incendios, quemas activas, emergencias, explosiones, derrames peligrosos y materiales inflamables.'),
 ('Corpoamazonia', 'corpoamazonia', 'Autoridad ambiental regional encargada de contaminacion ambiental, vertimientos, tala ilegal, deforestacion, fauna, flora, mineria ilegal y afectaciones a ecosistemas.'),
 ('Gestion del Riesgo', 'gestion_riesgo', 'Entidad encargada de amenazas, emergencias, desastres naturales, avalanchas, deslizamientos, inundaciones, crecientes subitas, derrames graves y eventos criticos.'),
 ('Secretaria de Salud', 'secretaria_salud', 'Entidad encargada de riesgos sanitarios, basuras con afectacion a la salud publica, aguas residuales, malos olores, residuos hospitalarios y proliferacion de vectores.'),
-('Alcaldia / Servicios Publicos', 'alcaldia_servicios_publicos', 'Entidad encargada de la atencion operativa de residuos urbanos, basura en via publica, escombros, alcantarillado, espacio publico y mantenimiento municipal.');
+('Alcaldia / Servicios Publicos', 'alcaldia_servicios_publicos', 'Entidad encargada de la atencion operativa de residuos urbanos, basura en via publica, escombros, alcantarillado, espacio publico y mantenimiento municipal.')
+ON DUPLICATE KEY UPDATE
+  nombre = VALUES(nombre),
+  descripcion = VALUES(descripcion),
+  activo = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+UPDATE entidades
+SET activo = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE codigo NOT IN (
+  'bomberos',
+  'corpoamazonia',
+  'gestion_riesgo',
+  'secretaria_salud',
+  'alcaldia_servicios_publicos'
+);
 
 INSERT IGNORE INTO categorias_riesgo 
 (id_categoria, codigo, nombre, descripcion, icono, color_hex, nivel_prioridad_default, activo) 

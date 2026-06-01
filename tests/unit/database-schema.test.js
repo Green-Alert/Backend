@@ -74,6 +74,25 @@ test('schema completo incluye indices de prediccion', async () => {
   assert.ok(schema.includes('INDEX idx_reportes_latitud_longitud (latitud, longitud)'));
 });
 
+test('schema completo consolida solo las entidades institucionales priorizadas', async () => {
+  const schema = await readSchema();
+
+  for (const codigo of [
+    'bomberos',
+    'corpoamazonia',
+    'gestion_riesgo',
+    'secretaria_salud',
+    'alcaldia_servicios_publicos',
+  ]) {
+    assert.ok(schema.includes(`'${codigo}'`), codigo);
+  }
+
+  assert.ok(schema.includes('ON DUPLICATE KEY UPDATE'));
+  assert.ok(schema.includes('WHERE codigo NOT IN'));
+  assert.doesNotMatch(schema, /gobernaci/i);
+  assert.doesNotMatch(schema, /parques/i);
+});
+
 test('migraciones no tienen numeracion duplicada ni scripts sueltos de notificaciones', async () => {
   const migrationsDir = path.join(backendDir, 'migrations');
   const files = await fs.readdir(migrationsDir);
