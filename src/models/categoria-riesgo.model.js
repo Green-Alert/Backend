@@ -121,8 +121,6 @@ const withReportStats = async (categorias) => {
     `SELECT tipo_contaminacion AS codigo,
             COUNT(*) AS total_reportes,
             SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
-            SUM(CASE WHEN estado = 'en_revision' THEN 1 ELSE 0 END) AS en_revision,
-            SUM(CASE WHEN estado = 'verificado' THEN 1 ELSE 0 END) AS verificados,
             SUM(CASE WHEN estado = 'en_proceso' THEN 1 ELSE 0 END) AS en_proceso,
             SUM(CASE WHEN estado = 'resuelto' THEN 1 ELSE 0 END) AS resueltos,
             SUM(CASE WHEN estado = 'rechazado' THEN 1 ELSE 0 END) AS rechazados,
@@ -141,8 +139,6 @@ const withReportStats = async (categorias) => {
     ...categoria,
     total_reportes: 0,
     pendientes: 0,
-    en_revision: 0,
-    verificados: 0,
     en_proceso: 0,
     resueltos: 0,
     rechazados: 0,
@@ -398,8 +394,7 @@ export const CategoriaRiesgoModel = {
           cr.color_hex,
           COUNT(r.id_reporte) as total_reportes,
           SUM(CASE WHEN r.estado = 'pendiente' THEN 1 ELSE 0 END) as pendientes,
-          SUM(CASE WHEN r.estado = 'en_revision' THEN 1 ELSE 0 END) as en_revision,
-          SUM(CASE WHEN r.estado = 'verificado' THEN 1 ELSE 0 END) as verificados,
+          SUM(CASE WHEN r.estado = 'en_proceso' THEN 1 ELSE 0 END) as en_proceso,
           SUM(CASE WHEN r.estado = 'resuelto' THEN 1 ELSE 0 END) as resueltos,
           SUM(CASE WHEN r.nivel_severidad = 'critico' THEN 1 ELSE 0 END) as criticos
          FROM categorias_riesgo cr

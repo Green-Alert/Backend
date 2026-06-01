@@ -86,7 +86,7 @@ export const buildOfflineResponse = ({ mensaje, contexto = {} }) => {
     alertas: `Las zonas de riesgo se calculan con reportes recientes, severidad y concentracion geografica. Hay ${totalReportes} reportes registrados en ${municipios} municipio(s) activo(s).`,
     verificacion: 'Despues del registro enviamos un codigo de 6 digitos al correo. Puedes ingresarlo en la pantalla de verificacion o solicitar uno nuevo cuando termine el contador.',
     recuperacion: 'Para recuperar tu contrasena usa Olvidaste tu contrasena, escribe tu correo y abre el enlace recibido. El enlace expira por seguridad.',
-    seguimiento: 'Puedes revisar el estado en Mis reportes. Los moderadores pueden cambiar un reporte entre pendiente, en revision, verificado, en proceso, resuelto o rechazado.',
+    seguimiento: 'Puedes revisar el estado en Mis reportes. Los responsables pueden cambiar un reporte entre pendiente, en proceso, resuelto o rechazado.',
     mis_reportes: usuario
       ? `Tienes ${reportesUsuario} reporte(s) registrados. Revisa Mis reportes para ver estado, evidencias y comentarios de moderacion.`
       : 'Para consultar tus reportes necesito que inicies sesion. Sin sesion puedo ayudarte con reportes, alertas y verificacion.',

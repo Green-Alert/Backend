@@ -306,7 +306,7 @@ test('updateReporte genera notificacion al dueno cuando cambia estado o comentar
       id_reporte: 10,
       uuid: 'reporte-uuid',
       id_usuario: 7,
-      estado: 'en_revision',
+      estado: 'en_proceso',
       titulo: 'Rio contaminado',
       comentario_moderacion: null,
     },
@@ -314,7 +314,7 @@ test('updateReporte genera notificacion al dueno cuando cambia estado o comentar
       id_reporte: 10,
       uuid: 'reporte-uuid',
       id_usuario: 7,
-      estado: 'verificado',
+      estado: 'resuelto',
       titulo: 'Rio contaminado',
       comentario_moderacion: 'Se valido evidencia.',
     },
@@ -334,7 +334,7 @@ test('updateReporte genera notificacion al dueno cuando cambia estado o comentar
       params: { id: '10' },
       user: { sub: 99, rol: 'moderador' },
       body: {
-        estado: 'verificado',
+        estado: 'resuelto',
         comentario_moderacion: 'Se valido evidencia.',
       },
     },
@@ -355,7 +355,7 @@ test('updateReporte respeta preferencia report_updates al crear notificaciones',
       id_reporte: 12,
       uuid: 'reporte-uuid-3',
       id_usuario: 7,
-      estado: 'en_revision',
+      estado: 'en_proceso',
       titulo: 'Humo constante',
       comentario_moderacion: null,
     },
@@ -363,9 +363,9 @@ test('updateReporte respeta preferencia report_updates al crear notificaciones',
       id_reporte: 12,
       uuid: 'reporte-uuid-3',
       id_usuario: 7,
-      estado: 'verificado',
+      estado: 'resuelto',
       titulo: 'Humo constante',
-      comentario_moderacion: null,
+      comentario_moderacion: 'Atendido.',
     },
   ];
 
@@ -386,14 +386,14 @@ test('updateReporte respeta preferencia report_updates al crear notificaciones',
     {
       params: { id: '12' },
       user: { sub: 99, rol: 'moderador' },
-      body: { estado: 'verificado' },
+      body: { estado: 'resuelto', comentario_moderacion: 'Atendido.' },
     },
     res,
     next
   );
 
   assert.equal(res.statusCode, 200);
-  assert.equal(UsuarioModel.findByIdWithDetails.mock.callCount(), 1);
+  assert.equal(UsuarioModel.findByIdWithDetails.mock.callCount(), 2);
   assert.equal(NotificacionModel.create.mock.callCount(), 0);
   assert.equal(next.mock.callCount(), 0);
 });
@@ -412,7 +412,7 @@ test('fallo al crear notificacion no rompe updateReporte', async (t) => {
       id_reporte: 11,
       uuid: 'reporte-uuid-2',
       id_usuario: 7,
-      estado: 'en_revision',
+      estado: 'en_proceso',
       titulo: 'Basura acumulada',
       comentario_moderacion: null,
     },
@@ -436,7 +436,7 @@ test('fallo al crear notificacion no rompe updateReporte', async (t) => {
     {
       params: { id: '11' },
       user: { sub: 99, rol: 'admin' },
-      body: { estado: 'en_revision' },
+      body: { estado: 'en_proceso' },
     },
     res,
     next

@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS reportes (
   id_usuario BIGINT UNSIGNED NOT NULL,
   tipo_contaminacion VARCHAR(50) NOT NULL,
   subcategoria VARCHAR(100) NULL,
-  estado ENUM('pendiente', 'en_revision', 'verificado', 'en_proceso', 'rechazado', 'resuelto') DEFAULT 'pendiente',
+  estado ENUM('pendiente', 'en_proceso', 'resuelto', 'rechazado') DEFAULT 'pendiente',
   nivel_severidad ENUM('bajo', 'medio', 'alto', 'critico') DEFAULT 'medio',
   titulo VARCHAR(255) NOT NULL,
   descripcion TEXT NULL,

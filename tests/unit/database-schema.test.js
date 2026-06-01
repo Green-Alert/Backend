@@ -45,7 +45,7 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
     'email_verificado BOOLEAN DEFAULT FALSE',
     'email_verification_token VARCHAR(64) NULL',
     'subcategoria VARCHAR(100) NULL',
-    "estado ENUM('pendiente', 'en_revision', 'verificado', 'en_proceso', 'rechazado', 'resuelto')",
+    "estado ENUM('pendiente', 'en_proceso', 'resuelto', 'rechazado')",
     'comentario_moderacion TEXT NULL',
     'ia_etiquetas JSON NULL',
     'ia_confianza DECIMAL(5, 2) NULL',

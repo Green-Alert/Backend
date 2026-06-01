@@ -6,12 +6,19 @@ import { randomUUID } from 'crypto';
 export const ESTADO_INICIAL_REPORTE = 'pendiente';
 export const ESTADOS_REPORTE_PERMITIDOS = [
   'pendiente',
-  'en_revision',
-  'verificado',
   'en_proceso',
-  'rechazado',
   'resuelto',
+  'rechazado',
 ];
+export const ESTADOS_REPORTE_LABELS = [
+  'pendiente',
+  'en proceso',
+  'resuelto',
+  'rechazado',
+];
+export const normalizeReporteEstado = (estado) => (
+  typeof estado === 'string' ? estado.trim().toLowerCase().replace(/\s+/g, '_') : ''
+);
 export const NIVELES_SEVERIDAD_PERMITIDOS = [
   'bajo',
   'medio',
@@ -30,7 +37,7 @@ const buildReportesFilter = ({
 
   if (estado) {
     conditions.push('r.estado = ?');
-    params.push(estado);
+    params.push(normalizeReporteEstado(estado));
   }
   if (tipo_contaminacion) {
     conditions.push('r.tipo_contaminacion = ?');
@@ -159,7 +166,7 @@ export const ReporteModel = {
 
     if (estado) {
       conditions.push('r.estado = ?');
-      params.push(estado);
+      params.push(normalizeReporteEstado(estado));
     }
     if (tipo_contaminacion) {
       conditions.push('r.tipo_contaminacion = ?');
@@ -418,10 +425,10 @@ export const ReporteModel = {
       `SELECT
          COUNT(*)                                                                          AS total_reportes,
          SUM(CASE WHEN MONTH(created_at)=MONTH(NOW()) AND YEAR(created_at)=YEAR(NOW()) THEN 1 ELSE 0 END) AS reportes_este_mes,
-         SUM(CASE WHEN estado='en_revision'  THEN 1 ELSE 0 END)                          AS en_revision,
+         SUM(CASE WHEN estado='en_proceso'   THEN 1 ELSE 0 END)                          AS en_proceso,
          SUM(CASE WHEN estado='resuelto'     THEN 1 ELSE 0 END)                          AS resueltos,
          COUNT(DISTINCT CASE WHEN municipio IS NOT NULL AND municipio!='' THEN municipio END) AS municipios_activos,
-         SUM(CASE WHEN estado IN ('en_revision','verificado','en_proceso') THEN 1 ELSE 0 END) AS con_seguimiento
+         SUM(CASE WHEN estado = 'en_proceso' THEN 1 ELSE 0 END) AS con_seguimiento
        FROM reportes WHERE deleted_at IS NULL`
     );
     const [[u]] = await pool.execute(
@@ -438,8 +445,6 @@ export const ReporteModel = {
            tipo_contaminacion AS codigo,
            COUNT(*) AS total_reportes,
            SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
-           SUM(CASE WHEN estado = 'en_revision' THEN 1 ELSE 0 END) AS en_revision,
-           SUM(CASE WHEN estado = 'verificado' THEN 1 ELSE 0 END) AS verificados,
            SUM(CASE WHEN estado = 'en_proceso' THEN 1 ELSE 0 END) AS en_proceso,
            SUM(CASE WHEN estado = 'resuelto' THEN 1 ELSE 0 END) AS resueltos,
            SUM(CASE WHEN estado = 'rechazado' THEN 1 ELSE 0 END) AS rechazados,
@@ -459,8 +464,6 @@ export const ReporteModel = {
           ...categoria,
           total_reportes: 0,
           pendientes: 0,
-          en_revision: 0,
-          verificados: 0,
           en_proceso: 0,
           resueltos: 0,
           rechazados: 0,
@@ -481,8 +484,6 @@ export const ReporteModel = {
          cr.color_hex,
          COUNT(r.id_reporte) AS total_reportes,
          SUM(CASE WHEN r.estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
-         SUM(CASE WHEN r.estado = 'en_revision' THEN 1 ELSE 0 END) AS en_revision,
-         SUM(CASE WHEN r.estado = 'verificado' THEN 1 ELSE 0 END) AS verificados,
          SUM(CASE WHEN r.estado = 'en_proceso' THEN 1 ELSE 0 END) AS en_proceso,
          SUM(CASE WHEN r.estado = 'resuelto' THEN 1 ELSE 0 END) AS resueltos,
          SUM(CASE WHEN r.estado = 'rechazado' THEN 1 ELSE 0 END) AS rechazados,
@@ -575,7 +576,7 @@ export const ReporteModel = {
       'r.deleted_at IS NULL',
       'r.latitud IS NOT NULL',
       'r.longitud IS NOT NULL',
-      "r.estado IN ('verificado', 'en_proceso', 'resuelto')",
+      "r.estado IN ('en_proceso', 'resuelto')",
     ];
     const params = [];
 

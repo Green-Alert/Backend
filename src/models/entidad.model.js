@@ -1,5 +1,17 @@
 import pool from '../config/database.js';
 
+export const ENTIDADES_INSTITUCIONALES_CODIGOS = [
+  'bomberos',
+  'corpoamazonia',
+  'gestion_riesgo',
+  'secretaria_salud',
+  'alcaldia_servicios_publicos',
+];
+
+export const isEntidadInstitucionalPermitida = (codigo) => (
+  ENTIDADES_INSTITUCIONALES_CODIGOS.includes(String(codigo || '').trim().toLowerCase())
+);
+
 export const EntidadModel = {
   findAll: async ({ activas } = {}) => {
     const conditions = [];
@@ -47,6 +59,24 @@ export const EntidadModel = {
     );
 
     return rows[0] ?? null;
+  },
+
+  findActiveAllowedByIdOrCodigo: async ({ id_entidad, codigo } = {}) => {
+    const normalizedCodigo = typeof codigo === 'string' ? codigo.trim().toLowerCase() : '';
+
+    if (id_entidad) {
+      const entidad = await EntidadModel.findById(id_entidad);
+      if (!entidad?.activo || !isEntidadInstitucionalPermitida(entidad.codigo)) return null;
+      return entidad;
+    }
+
+    if (!normalizedCodigo || !isEntidadInstitucionalPermitida(normalizedCodigo)) {
+      return null;
+    }
+
+    const entidad = await EntidadModel.findByCodigo(normalizedCodigo);
+    if (!entidad?.activo) return null;
+    return entidad;
   },
 
   findManyByCodigos: async (codigos = []) => {

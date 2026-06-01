@@ -38,7 +38,7 @@ test('updateReporte acepta estado y nivel_severidad validos normalizados', async
   t.mock.method(NotificacionModel, 'create', async () => ({ id_notificacion: 1, uuid: 'notif-1' }));
 
   const req = createModeratorRequest({
-    estado: ' En_Revision ',
+    estado: ' En Proceso ',
     nivel_severidad: ' Critico ',
   });
   const res = createResponse();
@@ -49,7 +49,7 @@ test('updateReporte acepta estado y nivel_severidad validos normalizados', async
   assert.equal(res.statusCode, 200);
   assert.equal(ReporteModel.update.mock.callCount(), 1);
   assert.deepEqual(ReporteModel.update.mock.calls[0].arguments[1], {
-    estado: 'en_revision',
+    estado: 'en_proceso',
     nivel_severidad: 'critico',
   });
   assert.equal(next.mock.callCount(), 0);
@@ -72,7 +72,7 @@ test('updateReporte rechaza estado invalido antes de actualizar', async (t) => {
   await updateReporte(req, res, next);
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.message, 'El estado debe ser uno de: pendiente, en_revision, verificado, en_proceso, rechazado, resuelto.');
+  assert.equal(res.body.message, 'El estado debe ser uno de: pendiente, en proceso, resuelto, rechazado.');
   assert.equal(ReporteModel.update.mock.callCount(), 0);
   assert.equal(next.mock.callCount(), 0);
 });
@@ -87,14 +87,14 @@ test('updateReporte rechaza transicion de estado no permitida antes de actualiza
     throw new Error('No debe actualizar reportes con transicion invalida');
   });
 
-  const req = createModeratorRequest({ estado: 'verificado' });
+  const req = createModeratorRequest({ estado: 'resuelto', comentario_moderacion: 'Atendido' });
   const res = createResponse();
   const next = t.mock.fn();
 
   await updateReporte(req, res, next);
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.message, 'Transicion de estado no permitida: pendiente -> verificado.');
+  assert.equal(res.body.message, 'Transicion de estado no permitida: pendiente -> resuelto.');
   assert.equal(ReporteModel.update.mock.callCount(), 0);
   assert.equal(next.mock.callCount(), 0);
 });
@@ -104,12 +104,12 @@ test('updateReporte permite transicion valida entre estados de moderacion', asyn
     {
       id_reporte: 15,
       id_usuario: 7,
-      estado: 'en_revision',
+      estado: 'en_proceso',
     },
     {
       id_reporte: 15,
       id_usuario: 7,
-      estado: 'verificado',
+      estado: 'resuelto',
     },
   ];
   t.mock.method(ReporteModel, 'findById', async () => reportes.shift());
@@ -120,7 +120,10 @@ test('updateReporte permite transicion valida entre estados de moderacion', asyn
   }));
   t.mock.method(NotificacionModel, 'create', async () => ({ id_notificacion: 1, uuid: 'notif-1' }));
 
-  const req = createModeratorRequest({ estado: 'verificado' });
+  const req = createModeratorRequest({
+    estado: 'resuelto',
+    comentario_moderacion: 'Caso atendido por la entidad.',
+  });
   const res = createResponse();
   const next = t.mock.fn();
 
@@ -129,8 +132,31 @@ test('updateReporte permite transicion valida entre estados de moderacion', asyn
   assert.equal(res.statusCode, 200);
   assert.equal(ReporteModel.update.mock.callCount(), 1);
   assert.deepEqual(ReporteModel.update.mock.calls[0].arguments[1], {
-    estado: 'verificado',
+    estado: 'resuelto',
+    comentario_moderacion: 'Caso atendido por la entidad.',
   });
+  assert.equal(next.mock.callCount(), 0);
+});
+
+test('updateReporte exige comentario cuando se resuelve o rechaza', async (t) => {
+  t.mock.method(ReporteModel, 'findById', async () => ({
+    id_reporte: 15,
+    id_usuario: 7,
+    estado: 'en_proceso',
+  }));
+  t.mock.method(ReporteModel, 'update', async () => {
+    throw new Error('No debe actualizar reportes resueltos sin comentario');
+  });
+
+  const req = createModeratorRequest({ estado: 'resuelto' });
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await updateReporte(req, res, next);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.message, 'El comentario es obligatorio al resolver o rechazar un reporte.');
+  assert.equal(ReporteModel.update.mock.callCount(), 0);
   assert.equal(next.mock.callCount(), 0);
 });
 

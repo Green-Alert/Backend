@@ -5,12 +5,20 @@ import {
   actualizarAtencionMiEntidad,
   listarEntidades,
   listarMisReportesEntidad,
+  listarReportesPorEntidad,
   obtenerMiReporteEntidad,
 } from '../src/controllers/entidad.controller.js';
 
 const entidadRouter = Router();
 
 entidadRouter.get('/', verifyToken, requireRoles('admin', 'moderador', 'entidad'), listarEntidades);
+entidadRouter.get(
+  '/:id/reportes',
+  validatePositiveIdParam('id'),
+  verifyToken,
+  requireRoles('admin', 'moderador', 'entidad'),
+  listarReportesPorEntidad
+);
 entidadRouter.get('/mis-reportes', verifyToken, requireRoles('entidad'), listarMisReportesEntidad);
 entidadRouter.get(
   '/mis-reportes/:id',

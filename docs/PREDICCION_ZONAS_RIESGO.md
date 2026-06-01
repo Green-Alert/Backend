@@ -8,11 +8,11 @@ Solo se consideran reportes que cumplan estas condiciones:
 
 - `deleted_at IS NULL`
 - `latitud` y `longitud` no nulas
-- `estado IN ('verificado', 'en_proceso', 'resuelto')`
+- `estado IN ('en_proceso', 'resuelto')`
 - `created_at >= desde`, cuando se envia filtro por dias
 - `tipo_contaminacion = tipo`, cuando se envia filtro por tipo
 
-Los estados `pendiente`, `en_revision` y `rechazado` no alimentan la prediccion.
+Los estados `pendiente` y `rechazado` no alimentan la prediccion.
 
 ## Agrupacion
 
