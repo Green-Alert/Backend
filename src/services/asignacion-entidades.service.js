@@ -24,18 +24,91 @@ const isHighSeverity = (reporte) => ['alto', 'critico'].includes(normalize(repor
 
 export const REGLAS_ASIGNACION_ENTIDADES = [
   {
-    match: { categoria: ['incendios_forestales'], subcategoria: ['incendio_activo'] },
-    keywords: ['incendio', 'llamas', 'fuego', 'humo por incendio', 'explosion', 'explosiones'],
+    match: { subcategoria: ['incendio_activo'] },
+    keywords: [
+      'incendio activo',
+      'incendio forestal activo',
+      'llamas',
+      'fuego activo',
+      'humo por incendio',
+      'explosion',
+      'explosiones',
+    ],
     principal: 'bomberos',
     apoyo: ['gestion_riesgo', 'corpoamazonia'],
     prioridad: 'critica',
   },
   {
     match: { subcategoria: ['quema_a_cielo_abierto', 'quema_de_bosques', 'rastrojos_quemados'] },
-    keywords: ['quema', 'humo'],
+    keywords: ['quema activa', 'quema no controlada', 'quema fuera de control'],
     principal: 'bomberos',
     apoyo: ['corpoamazonia', 'secretaria_salud'],
     prioridad: 'alta',
+  },
+  {
+    match: {
+      subcategoria: [
+        'derrame_de_combustible',
+        'derrame_de_quimicos',
+        'derrame_de_petroleo',
+        'derrame_de_hidrocarburos',
+      ],
+    },
+    keywords: [
+      'derrame de combustible',
+      'derrame combustible',
+      'derrame de gasolina',
+      'derrame de ACPM',
+      'derrame de diesel',
+      'derrame de petroleo',
+      'derrame de petróleo',
+      'derrame de hidrocarburos',
+      'derrame de quimicos',
+      'derrame de químicos',
+      'combustible',
+      'petroleo',
+      'petróleo',
+      'hidrocarburos',
+      'quimicos',
+      'químicos',
+      'liquido inflamable',
+      'líquido inflamable',
+      'sustancia peligrosa',
+      'material peligroso',
+      'emergencia quimica',
+      'emergencia química',
+    ],
+    principal: 'bomberos',
+    apoyo: ['corpoamazonia'],
+    prioridad: 'critica',
+  },
+  {
+    match: {},
+    keywords: [
+      'accidente vehicular con derrame',
+      'tractomula accidentada con derrame',
+      'camion accidentado con derrame',
+      'camión accidentado con derrame',
+      'volcamiento con derrame',
+    ],
+    principal: 'bomberos',
+    apoyo: ['corpoamazonia', 'gestion_riesgo'],
+    prioridad: 'critica',
+  },
+  {
+    match: {},
+    keywords: [
+      'rescate',
+      'personas atrapadas',
+      'persona atrapada',
+      'lesionados',
+      'persona lesionada',
+      'riesgo directo a personas',
+      'personas en riesgo',
+    ],
+    principal: 'bomberos',
+    apoyo: ['gestion_riesgo'],
+    prioridad: 'critica',
   },
   {
     match: { categoria: ['deforestacion'], subcategoria: ['tala_ilegal'] },
@@ -76,20 +149,6 @@ export const REGLAS_ASIGNACION_ENTIDADES = [
     prioridad: 'critica',
   },
   {
-    match: { subcategoria: ['derrame_de_combustible'] },
-    keywords: ['derrame', 'petroleo', 'gasolina', 'combustible'],
-    principal: 'gestion_riesgo',
-    apoyo: ['bomberos', 'corpoamazonia'],
-    prioridad: 'critica',
-  },
-  {
-    match: { subcategoria: ['derrame_de_quimicos'] },
-    keywords: ['quimico', 'emergencia quimica', 'materiales inflamables'],
-    principal: 'gestion_riesgo',
-    apoyo: ['bomberos', 'corpoamazonia'],
-    prioridad: 'critica',
-  },
-  {
     match: { subcategoria: ['vertimiento_industrial'] },
     keywords: ['vertimiento', 'vertidos ilegales'],
     principal: 'corpoamazonia',
@@ -111,6 +170,22 @@ export const REGLAS_ASIGNACION_ENTIDADES = [
     prioridad: 'media',
   },
   {
+    match: {},
+    keywords: [
+      'agua contaminada para consumo humano',
+      'agua de consumo contaminada',
+      'agua potable contaminada',
+      'riesgo sanitario',
+      'salud publica',
+      'salud pública',
+      'brote',
+      'condiciones insalubres',
+    ],
+    principal: 'secretaria_salud',
+    apoyo: ['alcaldia_servicios_publicos'],
+    prioridad: 'alta',
+  },
+  {
     match: { subcategoria: ['contaminacion_por_mineria'] },
     keywords: ['mineria', 'mineria ilegal'],
     principal: 'corpoamazonia',
@@ -119,14 +194,17 @@ export const REGLAS_ASIGNACION_ENTIDADES = [
   },
   {
     match: { categoria: ['agua', 'aire', 'suelo'] },
-    keywords: ['agua contaminada', 'contaminacion', 'fauna', 'flora', 'ecosistema'],
-    principal: 'corpoamazonia',
-    apoyo: [],
-    prioridad: 'media',
-  },
-  {
-    match: { categoria: ['otro'] },
-    keywords: [],
+    keywords: [
+      'contaminacion ambiental',
+      'contaminación ambiental',
+      'fauna',
+      'flora',
+      'ecosistema',
+      'vertimiento ambiental',
+      'vertimientos ambientales',
+      'daño ambiental',
+      'dano ambiental',
+    ],
     principal: 'corpoamazonia',
     apoyo: [],
     prioridad: 'media',
@@ -150,8 +228,9 @@ const matchesRule = (rule, reporte) => {
 };
 
 export const resolverAsignacionesEntidades = (reporte) => {
-  const rule = REGLAS_ASIGNACION_ENTIDADES.find((item) => matchesRule(item, reporte))
-    ?? REGLAS_ASIGNACION_ENTIDADES[REGLAS_ASIGNACION_ENTIDADES.length - 1];
+  const rule = REGLAS_ASIGNACION_ENTIDADES.find((item) => matchesRule(item, reporte));
+  if (!rule) return [];
+
   const apoyo = typeof rule.apoyo === 'function' ? rule.apoyo(reporte) : rule.apoyo;
   const codigos = [rule.principal, ...apoyo].filter(Boolean);
 
