@@ -7,7 +7,25 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const backendDir = path.resolve(path.dirname(__filename), '../..');
 const repoDir = path.resolve(backendDir, '..');
-const frontendApiPath = path.join(repoDir, 'Frontend', 'src', 'services', 'api.js');
+const frontendApiCandidates = [
+  path.join(repoDir, 'Frontend', 'src', 'services', 'api.js'),
+  path.join(repoDir, 'Front', 'src', 'services', 'api.js'),
+  path.join(backendDir, 'Frontend', 'src', 'services', 'api.js'),
+  path.join(backendDir, 'Front', 'src', 'services', 'api.js'),
+];
+
+const resolveFrontendApiPath = async () => {
+  for (const candidate of frontendApiCandidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // intenta con la siguiente ruta
+    }
+  }
+
+  throw new Error('No se encontro Frontend/src/services/api.js en rutas conocidas.');
+};
 
 const expectedFrontendContracts = [
   { method: 'get', path: '/health' },
@@ -83,12 +101,14 @@ const extractContracts = (source) => {
 };
 
 test('frontend usa baseURL /api para que Vite haga proxy al backend sin prefijo interno', async () => {
+  const frontendApiPath = await resolveFrontendApiPath();
   const source = await fs.readFile(frontendApiPath, 'utf8');
 
   assert.match(source, /baseURL:\s*'\/api'/);
 });
 
 test('endpoints consumidos por Frontend/src/services/api.js estan registrados en el contrato esperado', async () => {
+  const frontendApiPath = await resolveFrontendApiPath();
   const source = await fs.readFile(frontendApiPath, 'utf8');
   const actual = extractContracts(source);
   const expectedKeys = new Set(expectedFrontendContracts.map((item) => `${item.method} ${item.path}`));
