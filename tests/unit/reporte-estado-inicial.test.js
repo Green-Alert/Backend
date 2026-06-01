@@ -17,7 +17,7 @@ test('schema define pendiente como estado inicial de reportes', () => {
 
   assert.match(
     schema,
-    /estado ENUM\('pendiente', 'en_revision', 'verificado', 'en_proceso', 'rechazado', 'resuelto'\) DEFAULT 'pendiente'/
+    /estado ENUM\('pendiente', 'en_proceso', 'resuelto', 'rechazado'\) DEFAULT 'pendiente'/
   );
 });
 
@@ -37,5 +37,5 @@ test('controlador permite editar al propietario solo cuando el reporte esta pend
   const controller = readBackendFile('src/controllers/reporte.controller.js');
 
   assert.match(controller, /reporte\.estado !== ESTADO_INICIAL_REPORTE/);
-  assert.match(controller, /const allowed = isOwner\s*\?\s*\['titulo', 'descripcion', 'direccion', 'municipio', 'departamento'\]/);
+  assert.match(controller, /isOwner && !isMod\s*\?\s*\['titulo', 'descripcion', 'direccion', 'municipio', 'departamento'\]/);
 });

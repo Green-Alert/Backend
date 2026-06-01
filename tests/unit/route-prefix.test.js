@@ -11,7 +11,7 @@ pool.execute = async (sql) => {
     return [[{
       total_reportes: 0,
       reportes_este_mes: 0,
-      en_revision: 0,
+      en_proceso: 0,
       resueltos: 0,
       municipios_activos: 0,
       con_seguimiento: 0,

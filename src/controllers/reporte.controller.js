@@ -1,8 +1,10 @@
 import {
   ESTADO_INICIAL_REPORTE,
+  ESTADOS_REPORTE_LABELS,
   ESTADOS_REPORTE_PERMITIDOS,
   NIVELES_SEVERIDAD_PERMITIDOS,
   ReporteModel,
+  normalizeReporteEstado,
 } from '../models/reporte.model.js';
 import fs from 'node:fs/promises';
 import { CategoriaRiesgoModel } from '../models/categoria-riesgo.model.js';
@@ -54,12 +56,10 @@ const buildAllowedValuesMessage = (field, allowedValues) => (
 );
 
 const TRANSICIONES_ESTADO_REPORTE = {
-  pendiente: ['en_revision', 'rechazado'],
-  en_revision: ['verificado', 'en_proceso', 'rechazado'],
-  verificado: ['en_proceso', 'resuelto', 'rechazado'],
+  pendiente: ['en_proceso', 'rechazado'],
   en_proceso: ['resuelto', 'rechazado'],
   resuelto: [],
-  rechazado: ['pendiente'],
+  rechazado: [],
 };
 
 const canTransitionReporteEstado = (estadoActual, estadoNuevo) => {
@@ -869,8 +869,12 @@ export const updateReporte = async (req, res, next) => {
     const { rol, sub } = req.user;
     const isOwner = reporte.id_usuario === sub;
     const isMod   = rol === 'moderador' || rol === 'admin';
+    const asignacionEntidad = rol === 'entidad' && req.user?.id_entidad
+      ? await ReporteEntidadModel.findOneByReporteAndEntidad(id, req.user.id_entidad)
+      : null;
+    const isEntidadAsignada = Boolean(asignacionEntidad);
 
-    if (!isOwner && !isMod) {
+    if (!isOwner && !isMod && !isEntidadAsignada) {
       return errorResponse(res, 'No tienes permiso para editar este reporte.', 403);
     }
 
@@ -878,20 +882,33 @@ export const updateReporte = async (req, res, next) => {
     if (isOwner && !isMod && reporte.estado !== ESTADO_INICIAL_REPORTE) {
       return errorResponse(
         res,
-        'No puedes editar un reporte que ya está en revisión o procesado.',
+        'No puedes editar un reporte que ya esta en proceso, resuelto o rechazado.',
         403
       );
     }
 
-    // Owners can edit content fields; mods/admins can also change estado y comentario_moderacion
-    const allowed = isOwner
+    const body = { ...(req.body ?? {}) };
+    if (!Object.prototype.hasOwnProperty.call(body, 'comentario_moderacion')) {
+      if (Object.prototype.hasOwnProperty.call(body, 'observacion')) {
+        body.comentario_moderacion = body.observacion;
+      } else if (Object.prototype.hasOwnProperty.call(body, 'motivo')) {
+        body.comentario_moderacion = body.motivo;
+      } else if (Object.prototype.hasOwnProperty.call(body, 'comentario')) {
+        body.comentario_moderacion = body.comentario;
+      }
+    }
+
+    // Owners edit content only; moderators/admins and assigned entities can update estado.
+    const allowed = isOwner && !isMod
       ? ['titulo', 'descripcion', 'direccion', 'municipio', 'departamento']
-      : ['estado', 'nivel_severidad', 'titulo', 'descripcion', 'direccion', 'municipio', 'departamento', 'comentario_moderacion'];
+      : isEntidadAsignada && !isMod
+        ? ['estado', 'comentario_moderacion']
+        : ['estado', 'nivel_severidad', 'titulo', 'descripcion', 'direccion', 'municipio', 'departamento', 'comentario_moderacion'];
 
     const campos = {};
     for (const key of allowed) {
-      if (Object.prototype.hasOwnProperty.call(req.body ?? {}, key)) {
-        campos[key] = req.body[key];
+      if (Object.prototype.hasOwnProperty.call(body, key)) {
+        campos[key] = body[key];
       }
     }
 
@@ -900,22 +917,23 @@ export const updateReporte = async (req, res, next) => {
     }
 
     if (Object.prototype.hasOwnProperty.call(campos, 'estado')) {
-      const estado = normalizeEnumValue(campos.estado);
+      const estado = normalizeReporteEstado(campos.estado);
 
       if (!ESTADOS_REPORTE_PERMITIDOS.includes(estado)) {
         return errorResponse(
           res,
-          buildAllowedValuesMessage('El estado', ESTADOS_REPORTE_PERMITIDOS),
+          buildAllowedValuesMessage('El estado', ESTADOS_REPORTE_LABELS),
           400
         );
       }
 
       campos.estado = estado;
 
-      if (!canTransitionReporteEstado(reporte.estado, campos.estado)) {
+      const estadoActual = normalizeReporteEstado(reporte.estado);
+      if (!canTransitionReporteEstado(estadoActual, campos.estado)) {
         return errorResponse(
           res,
-          `Transicion de estado no permitida: ${reporte.estado} -> ${campos.estado}.`,
+          `Transicion de estado no permitida: ${estadoActual} -> ${campos.estado}.`,
           400
         );
       }
@@ -935,12 +953,17 @@ export const updateReporte = async (req, res, next) => {
       campos.nivel_severidad = nivelSeveridad;
     }
 
-    // Validar que comentario_moderacion es obligatorio si se rechaza
-    if (isMod && campos.estado === 'rechazado') {
+    // La estructura actual permite guardar observacion en comentario_moderacion.
+    if ((isMod || isEntidadAsignada) && ['resuelto', 'rechazado'].includes(campos.estado)) {
       const comentario = campos.comentario_moderacion?.trim();
       if (!comentario) {
-        return errorResponse(res, 'El comentario es obligatorio al rechazar un reporte.', 400);
+        return errorResponse(
+          res,
+          'El comentario es obligatorio al resolver o rechazar un reporte.',
+          400
+        );
       }
+      campos.comentario_moderacion = comentario;
     }
 
     await ReporteModel.update(id, campos);
@@ -1012,7 +1035,7 @@ export const deleteReporte = async (req, res, next) => {
     if (isOwner && !isMod && reporte.estado !== ESTADO_INICIAL_REPORTE) {
       return errorResponse(
         res,
-        'No puedes eliminar un reporte que ya está en revisión o procesado.',
+        'No puedes eliminar un reporte que ya esta en proceso, resuelto o rechazado.',
         403
       );
     }

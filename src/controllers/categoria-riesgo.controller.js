@@ -326,8 +326,7 @@ export const obtenerEstadisticasCategorias = async (req, res, next) => {
     const totales = {
       total_reportes: 0,
       pendientes: 0,
-      en_revision: 0,
-      verificados: 0,
+      en_proceso: 0,
       resueltos: 0,
       criticos: 0
     };
@@ -335,8 +334,7 @@ export const obtenerEstadisticasCategorias = async (req, res, next) => {
     estadisticas.forEach(cat => {
       totales.total_reportes += cat.total_reportes || 0;
       totales.pendientes += cat.pendientes || 0;
-      totales.en_revision += cat.en_revision || 0;
-      totales.verificados += cat.verificados || 0;
+      totales.en_proceso += cat.en_proceso || 0;
       totales.resueltos += cat.resueltos || 0;
       totales.criticos += cat.criticos || 0;
     });

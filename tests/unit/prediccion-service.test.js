@@ -21,7 +21,7 @@ const reportesBase = [
     id_reporte: 1,
     tipo_contaminacion: 'agua',
     subcategoria: 'vertimiento',
-    estado: 'verificado',
+    estado: 'en_proceso',
     nivel_severidad: 'alto',
     latitud: 10.401,
     longitud: -73.201,
@@ -154,7 +154,7 @@ test('ReporteModel.findParaPrediccion solo usa reportes moderados con ubicacion'
   assert.match(section, /r\.deleted_at IS NULL/);
   assert.match(section, /r\.latitud IS NOT NULL/);
   assert.match(section, /r\.longitud IS NOT NULL/);
-  assert.match(section, /r\.estado IN \('verificado', 'en_proceso', 'resuelto'\)/);
+  assert.match(section, /r\.estado IN \('en_proceso', 'resuelto'\)/);
   assert.match(section, /r\.created_at >= \?/);
   assert.match(section, /r\.tipo_contaminacion = \?/);
 });
@@ -168,5 +168,5 @@ test('documentacion de prediccion conserva formula y estados admitidos', async (
   assert.match(docs, /cantidad_reportes \* 16/);
   assert.match(docs, /severidad_promedio \* 14/);
   assert.match(docs, /recencia_promedio/);
-  assert.match(docs, /'verificado', 'en_proceso', 'resuelto'/);
+  assert.match(docs, /'en_proceso', 'resuelto'/);
 });
