@@ -12,6 +12,22 @@ import { errorResponse, successResponse } from '../utils/response.js';
 
 const getEntidadIdFromUser = (req) => Number(req.user?.id_entidad ?? req.user?.entidad_id);
 
+const getEntidadActivaFromUser = async (req, res) => {
+  const idEntidad = getEntidadIdFromUser(req);
+  if (!idEntidad) {
+    errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    return null;
+  }
+
+  const entidad = await EntidadModel.findActiveAllowedByIdOrCodigo({ id_entidad: idEntidad });
+  if (!entidad) {
+    errorResponse(res, 'Entidad asociada no encontrada, inactiva o fuera de alcance.', 403);
+    return null;
+  }
+
+  return entidad;
+};
+
 export const listarEntidades = async (_req, res, next) => {
   try {
     const entidades = await EntidadModel.findActive();
@@ -27,12 +43,10 @@ export const listarEntidades = async (_req, res, next) => {
 
 export const listarMisReportesEntidad = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    const entidad = await getEntidadActivaFromUser(req, res);
+    if (!entidad) return null;
 
-    const data = await ReporteEntidadModel.findByEntidad(idEntidad, {
+    const data = await ReporteEntidadModel.findByEntidad(entidad.id_entidad, {
       prioridad: req.query?.prioridad,
       estado_atencion: req.query?.estado_atencion,
       tipo_asignacion: req.query?.tipo_asignacion,
@@ -86,17 +100,15 @@ export const listarReportesPorEntidad = async (req, res, next) => {
 
 export const obtenerMiReporteEntidad = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
+    const entidad = await getEntidadActivaFromUser(req, res);
     const idReporte = Number(req.params.id);
 
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    if (!entidad) return null;
     if (!idReporte) {
       return errorResponse(res, 'Id de reporte invalido.', 400);
     }
 
-    const reporte = await ReporteEntidadModel.findReporteAsignadoByEntidad(idReporte, idEntidad);
+    const reporte = await ReporteEntidadModel.findReporteAsignadoByEntidad(idReporte, entidad.id_entidad);
     if (!reporte) {
       return errorResponse(res, 'Reporte asignado no encontrado.', 404);
     }
@@ -114,13 +126,11 @@ export const obtenerMiReporteEntidad = async (req, res, next) => {
 
 export const actualizarAtencionMiEntidad = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
+    const entidad = await getEntidadActivaFromUser(req, res);
     const idReporte = Number(req.params.id);
     const { estado_atencion, comentario = null } = req.body ?? {};
 
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    if (!entidad) return null;
     if (!idReporte) {
       return errorResponse(res, 'Id de reporte invalido.', 400);
     }
@@ -132,7 +142,7 @@ export const actualizarAtencionMiEntidad = async (req, res, next) => {
       );
     }
 
-    const asignacion = await ReporteEntidadModel.findOneByReporteAndEntidad(idReporte, idEntidad);
+    const asignacion = await ReporteEntidadModel.findOneByReporteAndEntidad(idReporte, entidad.id_entidad);
     if (!asignacion) {
       return errorResponse(res, 'Reporte asignado no encontrado.', 404);
     }
@@ -143,7 +153,7 @@ export const actualizarAtencionMiEntidad = async (req, res, next) => {
       typeof comentario === 'string' ? comentario.trim() || null : null
     );
 
-    const reporte = await ReporteEntidadModel.findReporteAsignadoByEntidad(idReporte, idEntidad);
+    const reporte = await ReporteEntidadModel.findReporteAsignadoByEntidad(idReporte, entidad.id_entidad);
     return successResponse(
       res,
       { reporte },
@@ -156,12 +166,10 @@ export const actualizarAtencionMiEntidad = async (req, res, next) => {
 
 export const listarMisAlertasEntidad = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    const entidad = await getEntidadActivaFromUser(req, res);
+    if (!entidad) return null;
 
-    const data = await listarAlertasEntidad(idEntidad, {
+    const data = await listarAlertasEntidad(entidad.id_entidad, {
       limit: req.query?.limit,
       offset: req.query?.offset,
     });
@@ -175,12 +183,10 @@ export const listarMisAlertasEntidad = async (req, res, next) => {
 
 export const listarMisAlertasNoLeidasEntidad = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    const entidad = await getEntidadActivaFromUser(req, res);
+    if (!entidad) return null;
 
-    const data = await listarAlertasNoLeidasEntidad(idEntidad, {
+    const data = await listarAlertasNoLeidasEntidad(entidad.id_entidad, {
       limit: req.query?.limit,
       offset: req.query?.offset,
     });
@@ -194,12 +200,10 @@ export const listarMisAlertasNoLeidasEntidad = async (req, res, next) => {
 
 export const contarMisAlertasNoLeidasEntidad = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    const entidad = await getEntidadActivaFromUser(req, res);
+    if (!entidad) return null;
 
-    const no_leidas = await contarAlertasNoLeidasEntidad(idEntidad);
+    const no_leidas = await contarAlertasNoLeidasEntidad(entidad.id_entidad);
 
     res.setHeader('Cache-Control', 'no-store');
     return successResponse(res, { no_leidas }, 'ok');
@@ -210,18 +214,16 @@ export const contarMisAlertasNoLeidasEntidad = async (req, res, next) => {
 
 export const marcarMiAlertaEntidadLeida = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
+    const entidad = await getEntidadActivaFromUser(req, res);
     const idUsuario = req.user?.sub;
     const idAlerta = Number(req.params.id);
 
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    if (!entidad) return null;
     if (!idAlerta) {
       return errorResponse(res, 'Id de alerta invalido.', 400);
     }
 
-    const ok = await marcarAlertaEntidadLeida(idAlerta, idEntidad, idUsuario);
+    const ok = await marcarAlertaEntidadLeida(idAlerta, entidad.id_entidad, idUsuario);
     if (!ok) {
       return errorResponse(res, 'Alerta de entidad no encontrada.', 404);
     }
@@ -238,14 +240,12 @@ export const marcarMiAlertaEntidadLeida = async (req, res, next) => {
 
 export const marcarTodasMisAlertasEntidadLeidas = async (req, res, next) => {
   try {
-    const idEntidad = getEntidadIdFromUser(req);
+    const entidad = await getEntidadActivaFromUser(req, res);
     const idUsuario = req.user?.sub;
 
-    if (!idEntidad) {
-      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
-    }
+    if (!entidad) return null;
 
-    const actualizadas = await marcarTodasAlertasEntidadLeidas(idEntidad, idUsuario);
+    const actualizadas = await marcarTodasAlertasEntidadLeidas(entidad.id_entidad, idUsuario);
 
     return successResponse(
       res,

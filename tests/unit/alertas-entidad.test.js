@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import entidadRouter from '../../routes/entidad.routes.js';
 import { AlertaEntidadModel } from '../../src/models/alerta-entidad.model.js';
+import { EntidadModel } from '../../src/models/entidad.model.js';
 import {
   crearAlertaDesdeAsignacionReporte,
   crearAlertasDesdeAsignacionesReporte,
@@ -66,6 +67,15 @@ const assignment = (overrides = {}) => ({
   entidad: { id_entidad: 1, codigo: 'bomberos', nombre: 'Bomberos' },
   ...overrides,
 });
+
+const mockEntidadActiva = (t, idEntidad = 1) => {
+  t.mock.method(EntidadModel, 'findActiveAllowedByIdOrCodigo', async ({ id_entidad }) => ({
+    id_entidad: id_entidad ?? idEntidad,
+    codigo: (id_entidad ?? idEntidad) === 1 ? 'bomberos' : 'corpoamazonia',
+    nombre: (id_entidad ?? idEntidad) === 1 ? 'Bomberos' : 'Corpoamazonia',
+    activo: 1,
+  }));
+};
 
 test('crea una alerta cuando se asigna un reporte critico a una entidad', async (t) => {
   let payload;
@@ -159,6 +169,7 @@ test('crea alerta para entidad principal y secundaria cuando ambas asignaciones 
 });
 
 test('usuario entidad solo lista alertas de su propia entidad', async (t) => {
+  mockEntidadActiva(t, 1);
   t.mock.method(AlertaEntidadModel, 'findByEntidad', async (idEntidad) => {
     assert.equal(idEntidad, 1);
     return { alertas: [{ id_alerta_entidad: 1, id_entidad: 1 }], meta: { total: 1 } };
@@ -176,6 +187,7 @@ test('usuario entidad solo lista alertas de su propia entidad', async (t) => {
 });
 
 test('usuario entidad solo lista alertas no leidas de su propia entidad', async (t) => {
+  mockEntidadActiva(t, 2);
   t.mock.method(AlertaEntidadModel, 'findByEntidad', async (idEntidad, filtros) => {
     assert.equal(idEntidad, 2);
     assert.equal(filtros.leida, false);
@@ -194,6 +206,7 @@ test('usuario entidad solo lista alertas no leidas de su propia entidad', async 
 });
 
 test('usuario entidad cuenta alertas no leidas solo de su entidad', async (t) => {
+  mockEntidadActiva(t, 1);
   t.mock.method(AlertaEntidadModel, 'countNoLeidasByEntidad', async (idEntidad) => {
     assert.equal(idEntidad, 1);
     return 3;
@@ -211,6 +224,7 @@ test('usuario entidad cuenta alertas no leidas solo de su entidad', async (t) =>
 });
 
 test('usuario entidad puede marcar como leida una alerta propia', async (t) => {
+  mockEntidadActiva(t, 1);
   t.mock.method(AlertaEntidadModel, 'markAsReadByEntidad', async (idAlerta, idEntidad, idUsuario) => {
     assert.equal(idAlerta, 15);
     assert.equal(idEntidad, 1);
@@ -230,6 +244,7 @@ test('usuario entidad puede marcar como leida una alerta propia', async (t) => {
 });
 
 test('usuario entidad no puede marcar como leida una alerta de otra entidad', async (t) => {
+  mockEntidadActiva(t, 1);
   t.mock.method(AlertaEntidadModel, 'markAsReadByEntidad', async (idAlerta, idEntidad) => {
     assert.equal(idAlerta, 16);
     assert.equal(idEntidad, 1);
@@ -248,6 +263,7 @@ test('usuario entidad no puede marcar como leida una alerta de otra entidad', as
 });
 
 test('usuario entidad puede marcar todas sus alertas como leidas', async (t) => {
+  mockEntidadActiva(t, 1);
   t.mock.method(AlertaEntidadModel, 'markAllAsReadByEntidad', async (idEntidad, idUsuario) => {
     assert.equal(idEntidad, 1);
     assert.equal(idUsuario, 9);
@@ -296,6 +312,87 @@ test('endpoints mis-alertas rechazan usuarios sin rol entidad', async () => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
   }
+});
+
+test('alias PATCH /entidades/mis-alertas/:id marca alerta como leida', async (t) => {
+  process.env.JWT_SECRET = JWT_SECRET;
+  mockEntidadActiva(t, 1);
+  t.mock.method(AlertaEntidadModel, 'markAsReadByEntidad', async (idAlerta, idEntidad, idUsuario) => {
+    assert.equal(idAlerta, 15);
+    assert.equal(idEntidad, 1);
+    assert.equal(idUsuario, 9);
+    return true;
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/entidades', entidadRouter);
+
+  const server = await new Promise((resolve) => {
+    const instance = http.createServer(app);
+    instance.listen(0, () => resolve(instance));
+  });
+
+  try {
+    const token = jwt.sign(
+      { sub: 9, rol: 'entidad', id_entidad: 1, email: 'entidad@test.local' },
+      JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/entidades/mis-alertas/15`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.data.id_alerta_entidad, 15);
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
+test('usuario entidad inactiva no puede listar mis alertas', async (t) => {
+  t.mock.method(EntidadModel, 'findActiveAllowedByIdOrCodigo', async ({ id_entidad }) => {
+    assert.equal(id_entidad, 1);
+    return null;
+  });
+  t.mock.method(AlertaEntidadModel, 'findByEntidad', async () => {
+    assert.fail('No debe consultar alertas si la entidad autenticada no esta activa.');
+  });
+
+  const res = createResponse();
+  await listarMisAlertasEntidad(
+    { user: { rol: 'entidad', id_entidad: 1 }, query: {} },
+    res,
+    assert.fail
+  );
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.message, 'Entidad asociada no encontrada, inactiva o fuera de alcance.');
+});
+
+test('usuario entidad inactiva no puede marcar alerta como leida', async (t) => {
+  t.mock.method(EntidadModel, 'findActiveAllowedByIdOrCodigo', async ({ id_entidad }) => {
+    assert.equal(id_entidad, 1);
+    return null;
+  });
+  t.mock.method(AlertaEntidadModel, 'markAsReadByEntidad', async () => {
+    assert.fail('No debe actualizar alertas si la entidad autenticada no esta activa.');
+  });
+
+  const res = createResponse();
+  await marcarMiAlertaEntidadLeida(
+    { params: { id: '15' }, user: { sub: 9, rol: 'entidad', id_entidad: 1 } },
+    res,
+    assert.fail
+  );
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.message, 'Entidad asociada no encontrada, inactiva o fuera de alcance.');
 });
 
 test('usuario entidad sin entidad asociada recibe error controlado', async (t) => {

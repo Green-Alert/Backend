@@ -19,6 +19,8 @@ import { calcularScoreEvidencias } from '../services/evidencia-score.service.js'
 import { deleteFileByPublicId, uploadFileBuffer } from '../services/cloudinary.service.js';
 import { invalidatePrediccionCache } from '../services/prediccion.service.js';
 import { AsignacionEntidadesService } from '../services/asignacion-entidades.service.js';
+import { crearAlertaDesdeAsignacionReporte } from '../services/alerta-entidad.service.js';
+import { notificarReporteCriticoAsignado } from '../config/socket.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { crearNotificacion } from './notificacion.controller.js';
 
@@ -61,6 +63,7 @@ const TRANSICIONES_ESTADO_REPORTE = {
   resuelto: [],
   rechazado: [],
 };
+const PRIORIDADES_ASIGNACION_PERMITIDAS = ['baja', 'media', 'alta', 'critica'];
 
 const canTransitionReporteEstado = (estadoActual, estadoNuevo) => {
   if (estadoActual === estadoNuevo) return true;
@@ -68,6 +71,16 @@ const canTransitionReporteEstado = (estadoActual, estadoNuevo) => {
 };
 
 const buildReporteLink = (reporte) => `/reports/${reporte.uuid ?? reporte.id_reporte}`;
+
+const getEntidadIdFromUser = (user) => Number(user?.id_entidad ?? user?.entidad_id);
+
+const getEntidadActivaIdFromUser = async (user) => {
+  const idEntidad = getEntidadIdFromUser(user);
+  if (!idEntidad) return null;
+
+  const entidad = await EntidadModel.findActiveAllowedByIdOrCodigo({ id_entidad: idEntidad });
+  return entidad?.id_entidad ?? null;
+};
 
 const canManageReporteEvidence = (reporte, user) => {
   if (!reporte || !user) {
@@ -482,11 +495,12 @@ export const getReportes = async (req, res, next) => {
     const { estado, tipo_contaminacion, nivel_severidad, municipio, limit = 20, offset = 0 } = req.query;
 
     if (req.user?.rol === 'entidad') {
-      if (!req.user.id_entidad) {
+      const idEntidad = await getEntidadActivaIdFromUser(req.user);
+      if (!idEntidad) {
         return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
       }
 
-      const data = await ReporteEntidadModel.findByEntidad(req.user.id_entidad, {
+      const data = await ReporteEntidadModel.findByEntidad(idEntidad, {
         categoria: tipo_contaminacion,
         severidad: nivel_severidad,
         limit,
@@ -762,6 +776,15 @@ export const asignarEntidadReporte = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const { id_entidad, codigo_entidad, comentario = null } = req.body ?? {};
+    const prioridad = normalizeEnumValue(req.body?.prioridad) || 'media';
+
+    if (!PRIORIDADES_ASIGNACION_PERMITIDAS.includes(prioridad)) {
+      return errorResponse(
+        res,
+        buildAllowedValuesMessage('La prioridad', PRIORIDADES_ASIGNACION_PERMITIDAS),
+        400
+      );
+    }
 
     const reporte = await ReporteModel.findById(id);
     if (!reporte) return errorResponse(res, 'Reporte no encontrado.', 404);
@@ -783,7 +806,7 @@ export const asignarEntidadReporte = async (req, res, next) => {
       id_reporte: id,
       id_entidad: entidad.id_entidad,
       tipo_asignacion: 'principal',
-      prioridad: 'media',
+      prioridad,
       estado_atencion: 'pendiente',
       comentario: typeof comentario === 'string' ? comentario.trim() || null : null,
     });
@@ -792,6 +815,24 @@ export const asignarEntidadReporte = async (req, res, next) => {
       id,
       entidad.id_entidad
     );
+
+    const assignmentForAlerts = {
+      ...asignacion,
+      id_reporte: id,
+      id_entidad: entidad.id_entidad,
+      tipo_asignacion: asignacion?.tipo_asignacion ?? 'principal',
+      prioridad: asignacion?.prioridad ?? prioridad,
+      entidad,
+    };
+
+    await crearAlertaDesdeAsignacionReporte({
+      reporte,
+      assignment: assignmentForAlerts,
+    });
+    notificarReporteCriticoAsignado({
+      reporte,
+      assignments: [assignmentForAlerts],
+    });
 
     if (reporte.id_usuario) {
       await crearNotificacion({
@@ -846,8 +887,15 @@ export const updateReporte = async (req, res, next) => {
     const { rol, sub } = req.user;
     const isOwner = reporte.id_usuario === sub;
     const isMod   = rol === 'moderador' || rol === 'admin';
-    const asignacionEntidad = rol === 'entidad' && req.user?.id_entidad
-      ? await ReporteEntidadModel.findOneByReporteAndEntidad(id, req.user.id_entidad)
+    const idEntidadActiva = rol === 'entidad'
+      ? await getEntidadActivaIdFromUser(req.user)
+      : null;
+    if (rol === 'entidad' && !idEntidadActiva) {
+      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    }
+
+    const asignacionEntidad = idEntidadActiva
+      ? await ReporteEntidadModel.findOneByReporteAndEntidad(id, idEntidadActiva)
       : null;
     const isEntidadAsignada = Boolean(asignacionEntidad);
 
@@ -1029,11 +1077,12 @@ export const getReporteById = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (req.user?.rol === 'entidad') {
-      if (!req.user.id_entidad) {
+      const idEntidad = await getEntidadActivaIdFromUser(req.user);
+      if (!idEntidad) {
         return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
       }
 
-      const asignado = await ReporteEntidadModel.findOneByReporteAndEntidad(id, req.user.id_entidad);
+      const asignado = await ReporteEntidadModel.findOneByReporteAndEntidad(id, idEntidad);
       if (!asignado) {
         return errorResponse(res, 'No tienes permiso para ver este reporte.', 403);
       }
