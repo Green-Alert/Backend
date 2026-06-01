@@ -1,9 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import http from 'node:http';
 import app from './app.js';
 import { testConnection } from './config/database.js';
 import { getEmailConfig } from './config/email.config.js';
+import { initializeSocket } from './config/socket.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -19,7 +21,10 @@ const startServer = async () => {
 
   await testConnection();
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+  initializeSocket(server);
+
+  server.listen(PORT, () => {
     console.log(`servidor corriendo en http://localhost:${PORT}`);
   });
 };

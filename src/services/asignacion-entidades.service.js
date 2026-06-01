@@ -2,6 +2,7 @@ import { EntidadModel } from '../models/entidad.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { UsuarioModel } from '../models/usuario.model.js';
 import { crearNotificacion } from '../controllers/notificacion.controller.js';
+import { notificarReporteCriticoAsignado } from '../config/socket.js';
 
 const normalize = (value) => (
   typeof value === 'string'
@@ -293,6 +294,8 @@ export const asignarEntidadesAReporte = async (reporte) => {
       prioridad: assignment.prioridad,
     });
   }
+
+  notificarReporteCriticoAsignado({ reporte, assignments });
 
   return assignments;
 };
