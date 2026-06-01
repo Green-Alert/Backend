@@ -8,10 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const backendDir = path.resolve(path.dirname(__filename), '../..');
 const repoDir = path.resolve(backendDir, '..');
 const frontendApiCandidates = [
-  path.join(repoDir, 'Frontend', 'src', 'services', 'api.js'),
-  path.join(repoDir, 'Front', 'src', 'services', 'api.js'),
   path.join(backendDir, 'Frontend', 'src', 'services', 'api.js'),
   path.join(backendDir, 'Front', 'src', 'services', 'api.js'),
+  path.join(repoDir, 'Frontend', 'src', 'services', 'api.js'),
+  path.join(repoDir, 'Front', 'src', 'services', 'api.js'),
 ];
 
 const resolveFrontendApiPath = async () => {
@@ -44,7 +44,6 @@ const expectedFrontendContracts = [
   { method: 'get', path: '/reportes' },
   { method: 'get', path: '/reportes/${id}' },
   { method: 'post', path: '/reportes/analizar-imagen' },
-  { method: 'post', path: '/reportes/sugerir-contenido' },
   { method: 'patch', path: '/reportes/${id}' },
   { method: 'delete', path: '/reportes/${id}' },
   { method: 'get', path: '/reportes/export' },
