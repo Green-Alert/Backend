@@ -1,5 +1,4 @@
 node_modules
-.npm-cache
 npm-debug.log
 Dockerfile
 .dockerignore
@@ -11,5 +10,4 @@ dist
 uploads
 tests
 docs
-repomix-output.xml
 *.log
