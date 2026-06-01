@@ -93,6 +93,11 @@ test('rutas consumidas por el cliente estan declaradas en backend', async () => 
     { router: 'notificacionRouter', method: 'delete', route: '/:uuid' },
     { router: 'entidadRouter', method: 'get', route: '/' },
     { router: 'entidadRouter', method: 'get', route: '/:id/reportes' },
+    { router: 'entidadRouter', method: 'get', route: '/mis-alertas' },
+    { router: 'entidadRouter', method: 'get', route: '/mis-alertas/no-leidas' },
+    { router: 'entidadRouter', method: 'get', route: '/mis-alertas/no-leidas/count' },
+    { router: 'entidadRouter', method: 'patch', route: '/mis-alertas/:id/leer' },
+    { router: 'entidadRouter', method: 'patch', route: '/mis-alertas/leer-todas' },
     { router: 'entidadRouter', method: 'get', route: '/mis-reportes' },
     { router: 'entidadRouter', method: 'get', route: '/mis-reportes/:id' },
     { router: 'entidadRouter', method: 'patch', route: '/mis-reportes/:id/atencion' },
@@ -120,6 +125,11 @@ test('rutas privadas y administrativas declaran middleware de autenticacion y ro
   assert.match(entidadRoutes, /entidadRouter\.get\('\/',\s*verifyToken,\s*requireRoles\('admin', 'moderador', 'entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/:id\/reportes'[\s\S]*verifyToken[\s\S]*requireRoles\('admin', 'moderador', 'entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\('\/mis-reportes',\s*verifyToken,\s*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\('\/mis-alertas',\s*verifyToken,\s*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-alertas\/no-leidas'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-alertas\/no-leidas\/count'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-alertas\/:id\/leer'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-alertas\/leer-todas'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-reportes\/:id'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-reportes\/:id\/atencion'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
 

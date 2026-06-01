@@ -1,6 +1,13 @@
 import { EntidadModel } from '../models/entidad.model.js';
 import { EvidenciaModel } from '../models/evidencia.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
+import {
+  contarAlertasNoLeidasEntidad,
+  listarAlertasEntidad,
+  listarAlertasNoLeidasEntidad,
+  marcarAlertaEntidadLeida,
+  marcarTodasAlertasEntidadLeidas,
+} from '../services/alerta-entidad.service.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 
 const getEntidadIdFromUser = (req) => Number(req.user?.id_entidad ?? req.user?.entidad_id);
@@ -141,6 +148,109 @@ export const actualizarAtencionMiEntidad = async (req, res, next) => {
       res,
       { reporte },
       'Estado de atencion actualizado correctamente.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const listarMisAlertasEntidad = async (req, res, next) => {
+  try {
+    const idEntidad = getEntidadIdFromUser(req);
+    if (!idEntidad) {
+      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    }
+
+    const data = await listarAlertasEntidad(idEntidad, {
+      limit: req.query?.limit,
+      offset: req.query?.offset,
+    });
+
+    res.setHeader('Cache-Control', 'no-store');
+    return successResponse(res, data, 'Alertas de entidad obtenidas correctamente.');
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const listarMisAlertasNoLeidasEntidad = async (req, res, next) => {
+  try {
+    const idEntidad = getEntidadIdFromUser(req);
+    if (!idEntidad) {
+      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    }
+
+    const data = await listarAlertasNoLeidasEntidad(idEntidad, {
+      limit: req.query?.limit,
+      offset: req.query?.offset,
+    });
+
+    res.setHeader('Cache-Control', 'no-store');
+    return successResponse(res, data, 'Alertas no leidas de entidad obtenidas correctamente.');
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const contarMisAlertasNoLeidasEntidad = async (req, res, next) => {
+  try {
+    const idEntidad = getEntidadIdFromUser(req);
+    if (!idEntidad) {
+      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    }
+
+    const no_leidas = await contarAlertasNoLeidasEntidad(idEntidad);
+
+    res.setHeader('Cache-Control', 'no-store');
+    return successResponse(res, { no_leidas }, 'ok');
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const marcarMiAlertaEntidadLeida = async (req, res, next) => {
+  try {
+    const idEntidad = getEntidadIdFromUser(req);
+    const idUsuario = req.user?.sub;
+    const idAlerta = Number(req.params.id);
+
+    if (!idEntidad) {
+      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    }
+    if (!idAlerta) {
+      return errorResponse(res, 'Id de alerta invalido.', 400);
+    }
+
+    const ok = await marcarAlertaEntidadLeida(idAlerta, idEntidad, idUsuario);
+    if (!ok) {
+      return errorResponse(res, 'Alerta de entidad no encontrada.', 404);
+    }
+
+    return successResponse(
+      res,
+      { id_alerta_entidad: idAlerta },
+      'Alerta marcada como leida.'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const marcarTodasMisAlertasEntidadLeidas = async (req, res, next) => {
+  try {
+    const idEntidad = getEntidadIdFromUser(req);
+    const idUsuario = req.user?.sub;
+
+    if (!idEntidad) {
+      return errorResponse(res, 'Usuario entidad sin entidad asignada.', 403);
+    }
+
+    const actualizadas = await marcarTodasAlertasEntidadLeidas(idEntidad, idUsuario);
+
+    return successResponse(
+      res,
+      { actualizadas },
+      'Alertas de entidad marcadas como leidas.'
     );
   } catch (error) {
     return next(error);
