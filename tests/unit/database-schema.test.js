@@ -21,6 +21,7 @@ test('schema completo incluye tablas de soporte requeridas por el backend', asyn
     'categorias_riesgo',
     'reportes',
     'reporte_entidades',
+    'alertas_entidad',
     'evidencias',
     'refresh_tokens',
     'reporte_likes',
@@ -59,6 +60,9 @@ test('schema completo conserva columnas actuales de auth, IA y moderacion', asyn
     'token_hash CHAR(64) NOT NULL',
     "tipo_asignacion ENUM('principal', 'apoyo')",
     "estado_atencion ENUM('pendiente', 'en_atencion', 'atendido', 'cerrado')",
+    "tipo_alerta ENUM('reporte_critico_asignado', 'reporte_prioritario_asignado', 'reporte_asignado')",
+    "prioridad ENUM('baja', 'media', 'alta', 'critica')",
+    'UNIQUE KEY uq_alerta_reporte_entidad_tipo (id_reporte_entidad, tipo_alerta)',
     "tipo ENUM('reporte_estado', 'reporte_comentario', 'reporte_creado', 'reporte_asignado_entidad', 'alerta_zona', 'sistema')",
   ]) {
     assert.ok(schema.includes(column), column);
@@ -105,4 +109,5 @@ test('migraciones no tienen numeracion duplicada ni scripts sueltos de notificac
   assert.equal(files.includes('create_notificaciones.sql'), false);
   assert.equal(files.includes('012_create_notificaciones.sql'), true);
   assert.equal(files.includes('014_create_entidades_and_reporte_entidades.sql'), true);
+  assert.equal(files.includes('018_create_alertas_entidad.sql'), true);
 });

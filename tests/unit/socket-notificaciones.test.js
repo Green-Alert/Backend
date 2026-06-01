@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 
 import { EntidadModel } from '../../src/models/entidad.model.js';
+import { AlertaEntidadModel } from '../../src/models/alerta-entidad.model.js';
 import { ReporteEntidadModel } from '../../src/models/reporte-entidad.model.js';
 import { UsuarioModel } from '../../src/models/usuario.model.js';
 import {
@@ -189,8 +190,11 @@ test('asignacion de reporte funciona aunque no haya clientes socket conectados',
     { id_entidad: 1, codigo: 'bomberos', nombre: 'Bomberos' },
     { id_entidad: 2, codigo: 'corpoamazonia', nombre: 'Corpoamazonia' },
   ]);
-  t.mock.method(ReporteEntidadModel, 'bulkCreateAssignments', async () => {});
+  t.mock.method(ReporteEntidadModel, 'bulkCreateAssignments', async (assignments) => (
+    assignments.map((item, index) => ({ ...item, id_reporte_entidad: index + 1 }))
+  ));
   t.mock.method(UsuarioModel, 'findActiveByEntidad', async () => []);
+  t.mock.method(AlertaEntidadModel, 'create', async () => 1);
 
   const assignments = await asignarEntidadesAReporte({
     id_reporte: 13,

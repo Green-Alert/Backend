@@ -103,6 +103,7 @@ export const ReporteEntidadModel = {
          (id_reporte, id_entidad, tipo_asignacion, prioridad, estado_atencion, comentario)
        VALUES (?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
+         id_reporte_entidad = LAST_INSERT_ID(id_reporte_entidad),
          tipo_asignacion = VALUES(tipo_asignacion),
          prioridad = VALUES(prioridad),
          actualizado_at = CURRENT_TIMESTAMP`,

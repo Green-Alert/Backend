@@ -14,7 +14,7 @@ import { EntidadModel } from '../models/entidad.model.js';
 import { LikeModel } from '../models/like.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { analyzeReporte } from '../services/ia.service.js';
-import { clasificarImagen } from '../services/clasificacion.service.js';
+import { clasificarImagen, sugerirContenidoDesdeImagen } from '../services/clasificacion.service.js';
 import { calcularScoreEvidencias } from '../services/evidencia-score.service.js';
 import { deleteFileByPublicId, uploadFileBuffer } from '../services/cloudinary.service.js';
 import { invalidatePrediccionCache } from '../services/prediccion.service.js';
@@ -136,19 +136,6 @@ const validateReporteEvidenceFiles = (files) => {
   return null;
 };
 
-const buildContenidoSugerido = ({ categoria = 'otro', nombre = 'Otro', subcategoria = null }) => {
-  const label = nombre || categoria || 'incidencia ambiental';
-  const detail = subcategoria ? ` asociada a ${subcategoria}` : '';
-
-  return {
-    titulo: `${label}${detail} reportada en la zona`.slice(0, 80),
-    descripcion:
-      `Se reporta una posible situacion de ${label.toLowerCase()}${detail} en el sector indicado. ` +
-      'La evidencia adjunta muestra condiciones que requieren revision por parte de la comunidad o las autoridades competentes. ' +
-      'Se solicita verificar el sitio, evaluar el nivel de afectacion y tomar las medidas necesarias.',
-  };
-};
-
 export const sugerirContenidoReporte = async (req, res, next) => {
   try {
     const files = getUploadedFiles(req);
@@ -162,21 +149,11 @@ export const sugerirContenidoReporte = async (req, res, next) => {
       return errorResponse(res, 'La sugerencia solo acepta imagenes.', 400);
     }
 
-    const analysis = await clasificarImagen({
-      ...firstImage,
-      originalname: `${req.body?.categoria || ''} ${firstImage.originalname || ''}`.trim(),
-    });
-    const contenido = buildContenidoSugerido(analysis);
+    const contenido = await sugerirContenidoDesdeImagen(firstImage, req.body?.categoria || null);
 
     return successResponse(
       res,
-      {
-        ...contenido,
-        categoria: analysis.categoria,
-        subcategoria: analysis.subcategoria,
-        confianza: analysis.confianza,
-        etiquetas: analysis.etiquetas,
-      },
+      contenido,
       'Contenido sugerido correctamente.'
     );
   } catch (error) {

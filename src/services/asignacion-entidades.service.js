@@ -2,6 +2,7 @@ import { EntidadModel } from '../models/entidad.model.js';
 import { ReporteEntidadModel } from '../models/reporte-entidad.model.js';
 import { UsuarioModel } from '../models/usuario.model.js';
 import { crearNotificacion } from '../controllers/notificacion.controller.js';
+import { crearAlertasDesdeAsignacionesReporte } from './alerta-entidad.service.js';
 import { notificarReporteCriticoAsignado } from '../config/socket.js';
 
 const normalize = (value) => (
@@ -285,9 +286,9 @@ export const asignarEntidadesAReporte = async (reporte) => {
     })
     .filter(Boolean);
 
-  await ReporteEntidadModel.bulkCreateAssignments(assignments);
+  const createdAssignments = await ReporteEntidadModel.bulkCreateAssignments(assignments);
 
-  for (const assignment of assignments) {
+  for (const assignment of createdAssignments) {
     await notificarUsuariosEntidad({
       reporte,
       entidad: assignment.entidad,
@@ -295,9 +296,15 @@ export const asignarEntidadesAReporte = async (reporte) => {
     });
   }
 
-  notificarReporteCriticoAsignado({ reporte, assignments });
+  try {
+    await crearAlertasDesdeAsignacionesReporte({ reporte, assignments: createdAssignments });
+  } catch (error) {
+    console.error('[alertas_entidad] error al crear alertas:', error.message);
+  }
 
-  return assignments;
+  notificarReporteCriticoAsignado({ reporte, assignments: createdAssignments });
+
+  return createdAssignments;
 };
 
 export const AsignacionEntidadesService = {

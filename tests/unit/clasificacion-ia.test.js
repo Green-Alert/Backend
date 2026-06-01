@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clasificarImagen } from '../../src/services/clasificacion.service.js';
+import { clasificarImagen, sugerirContenidoDesdeImagen } from '../../src/services/clasificacion.service.js';
 import { analizarImagen, createReporte, sugerirContenidoReporte } from '../../src/controllers/reporte.controller.js';
 import { CategoriaRiesgoModel } from '../../src/models/categoria-riesgo.model.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
@@ -131,6 +131,50 @@ test('sugerirContenidoReporte genera titulo y descripcion desde imagen', async (
   assert.ok(res.body.data.descripcion.length >= 10);
   assert.equal(res.body.data.categoria, 'agua');
   assert.equal(next.mock.callCount(), 0);
+});
+
+test('sugerirContenidoDesdeImagen usa respuesta visual de IA si esta disponible', async (t) => {
+  const originalKey = process.env.HF_API_KEY;
+  process.env.HF_API_KEY = 'test-key';
+  t.after(() => {
+    if (originalKey === undefined) delete process.env.HF_API_KEY;
+    else process.env.HF_API_KEY = originalKey;
+  });
+
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls += 1;
+    const content = calls === 1
+      ? JSON.stringify({
+        categoria: 'agua',
+        confianza: 88,
+        subcategoria: 'vertimiento',
+        confianza_subcategoria: 81,
+        severidad: 'alto',
+        confianza_severidad: 76,
+        etiquetas: ['rio', 'espuma'],
+      })
+      : JSON.stringify({
+        titulo: 'Vertimiento visible en el rio',
+        descripcion: 'Se observa agua con coloracion anormal y espuma cerca de la orilla. La evidencia muestra una posible afectacion puntual que requiere revision en sitio.',
+      });
+
+    return {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content } }] }),
+    };
+  });
+
+  const result = await sugerirContenidoDesdeImagen({
+    buffer: Buffer.from('fake image bytes'),
+    mimetype: 'image/jpeg',
+    originalname: 'evidencia.jpg',
+  }, 'agua');
+
+  assert.equal(result.titulo, 'Vertimiento visible en el rio');
+  assert.match(result.descripcion, /coloracion anormal/);
+  assert.equal(result.categoria, 'agua');
+  assert.equal(calls, 2);
 });
 
 test('createReporte persiste payload IA valido aceptado por el usuario', async (t) => {
