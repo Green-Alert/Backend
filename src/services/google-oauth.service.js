@@ -1,5 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import { getGoogleAuthUrlConfig, getGoogleConfig } from '../config/google.config.js';
+import { createOAuthState } from './oauth-state.service.js';
 
 let oauthClient = null;
 
@@ -110,6 +111,7 @@ export const generateAuthUrl = () => {
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent',
+      state: createOAuthState('google'),
     });
 
     return {
