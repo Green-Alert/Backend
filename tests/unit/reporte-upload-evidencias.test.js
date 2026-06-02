@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { fileFilter } from '../../middlewares/upload.middleware.js';
 import { createReporte } from '../../src/controllers/reporte.controller.js';
 import { CategoriaRiesgoModel } from '../../src/models/categoria-riesgo.model.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
 import { AsignacionEntidadesService } from '../../src/services/asignacion-entidades.service.js';
-
-const FAKE_FILE_1_SHA256 = 'c30851811a9b8c08b5c9b43c0d0ad77cc30f77188bfdc1bf97599c05e957d370';
+import {
+  resetCloudinaryClientForTest,
+  setCloudinaryClientForTest,
+} from '../../src/services/cloudinary.service.js';
 
 const createResponse = () => ({
   statusCode: null,
@@ -22,12 +25,60 @@ const createResponse = () => ({
   },
 });
 
+const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex');
+
+const createValidBuffer = (index, mimetype = 'image/png') => {
+  const payload = Buffer.from(`fake-file-${index}`);
+
+  if (mimetype === 'image/jpeg' || mimetype === 'image/jpg') {
+    return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), payload]);
+  }
+
+  if (mimetype === 'image/webp') {
+    return Buffer.concat([
+      Buffer.from('RIFF', 'ascii'),
+      Buffer.from([0x10, 0x00, 0x00, 0x00]),
+      Buffer.from('WEBPVP8 ', 'ascii'),
+      payload,
+    ]);
+  }
+
+  if (mimetype === 'image/gif') {
+    return Buffer.concat([Buffer.from('GIF89a', 'ascii'), payload]);
+  }
+
+  if (mimetype === 'video/mp4') {
+    return Buffer.concat([
+      Buffer.from([0x00, 0x00, 0x00, 0x18]),
+      Buffer.from('ftypisom', 'ascii'),
+      Buffer.from([0x00, 0x00, 0x00, 0x00]),
+      Buffer.from('isomiso2mp41', 'ascii'),
+      payload,
+    ]);
+  }
+
+  if (mimetype === 'video/quicktime') {
+    return Buffer.concat([
+      Buffer.from([0x00, 0x00, 0x00, 0x14]),
+      Buffer.from('ftypqt  ', 'ascii'),
+      Buffer.from([0x00, 0x00, 0x00, 0x00]),
+      Buffer.from('qt  ', 'ascii'),
+      payload,
+    ]);
+  }
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    payload,
+  ]);
+};
+
 const createFile = (index, mimetype = 'image/png') => ({
   mimetype,
   filename: `evidencia-${index}.${mimetype.startsWith('video/') ? 'mp4' : 'png'}`,
   originalname: `original-${index}.${mimetype.startsWith('video/') ? 'mp4' : 'png'}`,
   size: 1024 + index,
-  buffer: Buffer.from(`fake-file-${index}`),
+  buffer: createValidBuffer(index, mimetype),
 });
 
 const createRequest = (files = [], bodyOverrides = {}) => ({
@@ -64,6 +115,10 @@ const mockSuccessfulCreate = (t) => {
   t.mock.method(AsignacionEntidadesService, 'asignarEntidadesAReporte', async () => []);
 };
 
+test.afterEach(() => {
+  resetCloudinaryClientForTest();
+});
+
 test('createReporte guarda multiples imagenes con metadata y orden', async (t) => {
   mockSuccessfulCreate(t);
 
@@ -83,7 +138,7 @@ test('createReporte guarda multiples imagenes con metadata y orden', async (t) =
   assert.equal(evidencia.nombre_original, 'original-1.png');
   assert.equal(evidencia.mime_type, 'image/png');
   assert.equal(evidencia.tamano_bytes, 1025);
-  assert.equal(evidencia.hash_sha256, FAKE_FILE_1_SHA256);
+  assert.equal(evidencia.hash_sha256, sha256(createFile(1).buffer));
   assert.equal(evidencia.storage_provider, 'cloudinary');
   assert.match(evidencia.cloudinary_public_id, /^green-alert\/test\//);
   assert.match(evidencia.cloudinary_asset_id, /^asset-/);
@@ -156,6 +211,37 @@ test('createReporte permite un video por reporte', async (t) => {
   assert.equal(EvidenciaModel.create.mock.calls[1].arguments[0].cloudinary_resource_type, 'video');
 });
 
+test('createReporte rechaza archivo con MIME valido pero contenido invalido', async (t) => {
+  t.mock.method(CategoriaRiesgoModel, 'esValido', async () => {
+    throw new Error('No debe validar categoria con contenido invalido');
+  });
+  t.mock.method(ReporteModel, 'create', async () => {
+    throw new Error('No debe insertar reporte con contenido invalido');
+  });
+  t.mock.method(EvidenciaModel, 'create', async () => {
+    throw new Error('No debe insertar evidencia con contenido invalido');
+  });
+
+  const req = createRequest([{
+    ...createFile(0),
+    originalname: 'falso.png',
+    buffer: Buffer.from('%PDF-1.7 contenido falso'),
+  }]);
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await createReporte(req, res, next);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(
+    res.body.message,
+    'El contenido del archivo "falso.png" no coincide con el tipo declarado o esta corrupto.'
+  );
+  assert.equal(ReporteModel.create.mock.callCount(), 0);
+  assert.equal(EvidenciaModel.create.mock.callCount(), 0);
+  assert.equal(next.mock.callCount(), 0);
+});
+
 test('createReporte rechaza dos videos antes de crear reporte', async (t) => {
   t.mock.method(CategoriaRiesgoModel, 'esValido', async () => {
     throw new Error('No debe validar categoria con dos videos');
@@ -199,4 +285,81 @@ test('fileFilter rechaza mime invalido como error 400', () => {
   assert.equal(callbackError.statusCode, 400);
   assert.equal(callbackError.message, 'Tipo de archivo no permitido. Solo imagenes y videos.');
   assert.equal(accepted, undefined);
+});
+
+test('createReporte revierte reporte si Cloudinary falla al subir evidencia', async (t) => {
+  mockSuccessfulCreate(t);
+  t.mock.method(ReporteModel, 'remove', async () => true);
+
+  setCloudinaryClientForTest({
+    uploader: {
+      upload_stream(_options, callback) {
+        return {
+          end() {
+            callback(new Error('cloudinary unavailable'));
+          },
+        };
+      },
+    },
+  });
+
+  const req = createRequest([createFile(0)]);
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await createReporte(req, res, next);
+
+  assert.equal(res.statusCode, null);
+  assert.equal(EvidenciaModel.create.mock.callCount(), 0);
+  assert.equal(ReporteModel.remove.mock.callCount(), 1);
+  assert.equal(ReporteModel.remove.mock.calls[0].arguments[0], 15);
+  assert.equal(next.mock.callCount(), 1);
+  assert.equal(next.mock.calls[0].arguments[0].message, 'cloudinary unavailable');
+});
+
+test('createReporte limpia Cloudinary y revierte reporte si falla guardado de evidencia', async (t) => {
+  mockSuccessfulCreate(t);
+  t.mock.method(ReporteModel, 'remove', async () => true);
+  t.mock.method(EvidenciaModel, 'create', async () => {
+    throw new Error('db evidence unavailable');
+  });
+
+  let destroyedPublicId = null;
+  let destroyOptions = null;
+  setCloudinaryClientForTest({
+    uploader: {
+      upload_stream(options, callback) {
+        return {
+          end() {
+            callback(null, {
+              asset_id: 'asset-mock',
+              public_id: 'green-alert/reportes/mock',
+              secure_url: 'https://mocked.cloudinary/image/upload/green-alert/reportes/mock',
+              resource_type: options.resource_type,
+              bytes: 1024,
+            });
+          },
+        };
+      },
+      destroy(publicId, options) {
+        destroyedPublicId = publicId;
+        destroyOptions = options;
+        return Promise.resolve({ result: 'ok' });
+      },
+    },
+  });
+
+  const req = createRequest([createFile(0)]);
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await createReporte(req, res, next);
+
+  assert.equal(res.statusCode, null);
+  assert.equal(ReporteModel.remove.mock.callCount(), 1);
+  assert.equal(ReporteModel.remove.mock.calls[0].arguments[0], 15);
+  assert.equal(destroyedPublicId, 'green-alert/reportes/mock');
+  assert.deepEqual(destroyOptions, { resource_type: 'image', invalidate: true });
+  assert.equal(next.mock.callCount(), 1);
+  assert.equal(next.mock.calls[0].arguments[0].message, 'db evidence unavailable');
 });
