@@ -196,7 +196,7 @@ Campos relevantes:
 | Campo | Requerido | Valores | Nota |
 | --- | --- | --- | --- |
 | `id_entidad` | Si | ID de entidad activa y permitida | La entidad debe existir, estar activa y pertenecer al alcance actual. |
-| `tipo_asignacion` | No | `principal`, `secundaria` | Si no se envia, el backend conserva su comportamiento actual. |
+| `tipo_asignacion` | No | `principal`, `apoyo` | Si no se envia, el backend usa `principal` por defecto. |
 | `prioridad` | No | `baja`, `media`, `alta`, `critica` | Si no se envia, el backend usa `media` por defecto para mantener compatibilidad. |
 
 Comportamiento por prioridad:

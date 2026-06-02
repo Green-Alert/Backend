@@ -63,6 +63,7 @@ const TRANSICIONES_ESTADO_REPORTE = {
   resuelto: [],
   rechazado: [],
 };
+const TIPOS_ASIGNACION_PERMITIDOS = ['principal', 'apoyo'];
 const PRIORIDADES_ASIGNACION_PERMITIDAS = ['baja', 'media', 'alta', 'critica'];
 
 const canTransitionReporteEstado = (estadoActual, estadoNuevo) => {
@@ -776,7 +777,16 @@ export const asignarEntidadReporte = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const { id_entidad, codigo_entidad, comentario = null } = req.body ?? {};
+    const tipoAsignacion = normalizeEnumValue(req.body?.tipo_asignacion) || 'principal';
     const prioridad = normalizeEnumValue(req.body?.prioridad) || 'media';
+
+    if (!TIPOS_ASIGNACION_PERMITIDOS.includes(tipoAsignacion)) {
+      return errorResponse(
+        res,
+        buildAllowedValuesMessage('El tipo_asignacion', TIPOS_ASIGNACION_PERMITIDOS),
+        400
+      );
+    }
 
     if (!PRIORIDADES_ASIGNACION_PERMITIDAS.includes(prioridad)) {
       return errorResponse(
@@ -805,7 +815,7 @@ export const asignarEntidadReporte = async (req, res, next) => {
     await ReporteEntidadModel.createAssignment({
       id_reporte: id,
       id_entidad: entidad.id_entidad,
-      tipo_asignacion: 'principal',
+      tipo_asignacion: tipoAsignacion,
       prioridad,
       estado_atencion: 'pendiente',
       comentario: typeof comentario === 'string' ? comentario.trim() || null : null,
@@ -820,7 +830,7 @@ export const asignarEntidadReporte = async (req, res, next) => {
       ...asignacion,
       id_reporte: id,
       id_entidad: entidad.id_entidad,
-      tipo_asignacion: asignacion?.tipo_asignacion ?? 'principal',
+      tipo_asignacion: asignacion?.tipo_asignacion ?? tipoAsignacion,
       prioridad: asignacion?.prioridad ?? prioridad,
       entidad,
     };

@@ -144,7 +144,7 @@ test('la tabla y el modelo evitan duplicados por asignacion y tipo de alerta', a
   assert.match(model, /LAST_INSERT_ID\(id_alerta_entidad\)/);
 });
 
-test('crea alerta para entidad principal y secundaria cuando ambas asignaciones aplican', async (t) => {
+test('crea alerta para entidad principal y de apoyo cuando ambas asignaciones aplican', async (t) => {
   const created = [];
   t.mock.method(AlertaEntidadModel, 'create', async (data) => {
     created.push(data);

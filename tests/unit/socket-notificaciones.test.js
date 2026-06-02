@@ -121,7 +121,7 @@ test('emision critica a Bomberos notifica solo la sala de Bomberos', () => {
   assert.equal(emissions[0].event, SOCKET_EVENTS.REPORTE_CRITICO_ASIGNADO);
 });
 
-test('reporte critico con entidad principal y secundaria notifica ambas salas', () => {
+test('reporte critico con entidad principal y de apoyo notifica ambas salas', () => {
   const { io, emissions } = createMockIo();
   setSocketServerForTests(io);
 
