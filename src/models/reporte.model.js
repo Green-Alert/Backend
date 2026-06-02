@@ -58,6 +58,18 @@ const buildReportesFilter = ({
   };
 };
 
+const ESTADO_ATENCION_RESPONSABLE_SQL = `
+              (
+                SELECT CASE
+                  WHEN SUM(CASE WHEN re.estado_atencion = 'en_atencion' THEN 1 ELSE 0 END) > 0 THEN 'en_atencion'
+                  WHEN SUM(CASE WHEN re.estado_atencion = 'atendido' THEN 1 ELSE 0 END) > 0 THEN 'atendido'
+                  WHEN SUM(CASE WHEN re.estado_atencion = 'cerrado' THEN 1 ELSE 0 END) > 0 THEN 'cerrado'
+                  ELSE NULL
+                END
+                FROM reporte_entidades re
+                WHERE re.id_reporte = r.id_reporte
+              ) AS estado_atencion_responsable`;
+
 export const normalizeReporteIA = (reporte) => {
   if (!reporte) return reporte;
 
@@ -115,6 +127,7 @@ export const ReporteModel = {
               r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
+              ${ESTADO_ATENCION_RESPONSABLE_SQL},
               r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
               r.votos_relevancia, r.vistas,
               r.created_at, r.updated_at,
@@ -220,6 +233,7 @@ export const ReporteModel = {
               r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
               r.titulo, r.descripcion,
               r.latitud, r.longitud, r.direccion, r.municipio, r.departamento,
+              ${ESTADO_ATENCION_RESPONSABLE_SQL},
               r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
               r.votos_relevancia, r.vistas,
               r.comentario_moderacion,
@@ -239,13 +253,15 @@ export const ReporteModel = {
     const safeLimit  = Math.max(1, Math.min(100, parseInt(limit,  10) || 20));
     const safeOffset = Math.max(0,               parseInt(offset, 10) || 0);
     const [rows] = await pool.execute(
-      `SELECT id_reporte, uuid, tipo_contaminacion, subcategoria, estado, nivel_severidad,
-              titulo, municipio, departamento, ia_etiquetas, ia_confianza, ia_procesado, confianza_evidencia,
-              votos_relevancia, vistas,
-              created_at, updated_at
-       FROM reportes
-       WHERE id_usuario = ? AND deleted_at IS NULL
-       ORDER BY created_at DESC
+      `SELECT r.id_reporte, r.uuid, r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
+              r.titulo, r.municipio, r.departamento,
+              ${ESTADO_ATENCION_RESPONSABLE_SQL},
+              r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
+              r.votos_relevancia, r.vistas,
+              r.created_at, r.updated_at
+       FROM reportes r
+       WHERE r.id_usuario = ? AND r.deleted_at IS NULL
+       ORDER BY r.created_at DESC
        LIMIT ${safeLimit} OFFSET ${safeOffset}`,
       [id_usuario]
     );
