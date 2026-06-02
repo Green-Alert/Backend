@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { updateReporte } from '../../src/controllers/reporte.controller.js';
+import { EntidadModel } from '../../src/models/entidad.model.js';
 import { NotificacionModel } from '../../src/models/notificacion.model.js';
+import { ReporteEntidadModel } from '../../src/models/reporte-entidad.model.js';
 import { ReporteModel } from '../../src/models/reporte.model.js';
 import { UsuarioModel } from '../../src/models/usuario.model.js';
 
@@ -179,5 +181,37 @@ test('updateReporte rechaza nivel_severidad invalido antes de actualizar', async
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.message, 'El nivel de severidad debe ser uno de: bajo, medio, alto, critico.');
   assert.equal(ReporteModel.update.mock.callCount(), 0);
+  assert.equal(next.mock.callCount(), 0);
+});
+
+test('updateReporte rechaza usuario entidad con entidad inactiva', async (t) => {
+  t.mock.method(ReporteModel, 'findById', async () => ({
+    id_reporte: 15,
+    id_usuario: 7,
+    estado: 'pendiente',
+  }));
+  t.mock.method(EntidadModel, 'findActiveAllowedByIdOrCodigo', async ({ id_entidad }) => {
+    assert.equal(id_entidad, 1);
+    return null;
+  });
+  t.mock.method(ReporteEntidadModel, 'findOneByReporteAndEntidad', async () => {
+    assert.fail('No debe consultar asignacion si la entidad no esta activa.');
+  });
+  t.mock.method(ReporteModel, 'update', async () => {
+    assert.fail('No debe actualizar reportes si la entidad no esta activa.');
+  });
+
+  const req = {
+    params: { id: '15' },
+    user: { sub: 9, rol: 'entidad', id_entidad: 1 },
+    body: { estado: 'en_proceso' },
+  };
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await updateReporte(req, res, next);
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.message, 'Usuario entidad sin entidad asignada.');
   assert.equal(next.mock.callCount(), 0);
 });

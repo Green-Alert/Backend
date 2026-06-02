@@ -97,6 +97,7 @@ test('rutas consumidas por el cliente estan declaradas en backend', async () => 
     { router: 'entidadRouter', method: 'get', route: '/mis-alertas/no-leidas' },
     { router: 'entidadRouter', method: 'get', route: '/mis-alertas/no-leidas/count' },
     { router: 'entidadRouter', method: 'patch', route: '/mis-alertas/:id/leer' },
+    { router: 'entidadRouter', method: 'patch', route: '/mis-alertas/:id' },
     { router: 'entidadRouter', method: 'patch', route: '/mis-alertas/leer-todas' },
     { router: 'entidadRouter', method: 'get', route: '/mis-reportes' },
     { router: 'entidadRouter', method: 'get', route: '/mis-reportes/:id' },
@@ -129,6 +130,7 @@ test('rutas privadas y administrativas declaran middleware de autenticacion y ro
   assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-alertas\/no-leidas'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-alertas\/no-leidas\/count'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-alertas\/:id\/leer'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
+  assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-alertas\/:id'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-alertas\/leer-todas'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.get\([\s\S]*'\/mis-reportes\/:id'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);
   assert.match(entidadRoutes, /entidadRouter\.patch\([\s\S]*'\/mis-reportes\/:id\/atencion'[\s\S]*verifyToken[\s\S]*requireRoles\('entidad'\)/);

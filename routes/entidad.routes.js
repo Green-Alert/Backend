@@ -50,6 +50,13 @@ entidadRouter.patch(
   requireRoles('entidad'),
   marcarMiAlertaEntidadLeida
 );
+entidadRouter.patch(
+  '/mis-alertas/:id',
+  validatePositiveIdParam('id'),
+  verifyToken,
+  requireRoles('entidad'),
+  marcarMiAlertaEntidadLeida
+);
 entidadRouter.get('/mis-reportes', verifyToken, requireRoles('entidad'), listarMisReportesEntidad);
 entidadRouter.get(
   '/mis-reportes/:id',

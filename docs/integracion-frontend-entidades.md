@@ -1,4 +1,4 @@
-# Integracion frontend para entidades, reportes y alertas
+# Integracion frontend para entidades, reportes, asignaciones y alertas
 
 Esta guia documenta los contratos actuales del backend para construir el panel de usuario entidad en Green Alert. No se debe enviar `id_entidad` desde el frontend para consultar datos propios: el backend siempre toma la entidad desde el JWT (`id_entidad` o `entidad_id`).
 
@@ -49,18 +49,23 @@ Todos los endpoints de `mis-reportes` y `mis-alertas` requieren:
 - Header `Authorization: Bearer <jwt>`.
 - Rol `entidad`.
 - Usuario entidad con `id_entidad` o `entidad_id` en el token.
+- Entidad asociada existente, activa y permitida.
 
 El frontend no debe enviar ni confiar en `id_entidad` para estos endpoints. Si el usuario intenta manipular query params o body con otra entidad, el backend los ignora en los endpoints propios.
+
+La entidad autenticada solo puede ver sus propios reportes y alertas. Si la entidad esta inactiva, no existe o no esta dentro de las entidades permitidas de esta fase, el backend rechaza la operacion. Las entidades inactivas tampoco pueden recibir asignaciones manuales.
 
 Errores comunes:
 
 | Estado | Caso | Mensaje esperado |
 | --- | --- | --- |
-| `401` | Token ausente | `acceso denegado. token no proporcionado.` |
-| `403` | Token invalido o expirado | `token invalido o expirado.` |
+| `400` | Prioridad de asignacion invalida | `La prioridad debe ser uno de: baja, media, alta, critica.` |
+| `401` | Token ausente o invalido | `acceso denegado. token no proporcionado.` o error de token invalido |
 | `403` | Rol distinto de `entidad` | `acceso denegado. rol no autorizado.` |
 | `403` | Usuario entidad sin entidad asociada | `Usuario entidad sin entidad asignada.` |
-| `404` | Alerta o reporte no pertenece a la entidad | `Alerta de entidad no encontrada.` o `Reporte asignado no encontrado.` |
+| `403` | Entidad inactiva, inexistente o fuera de alcance | `Entidad asociada no encontrada, inactiva o fuera de alcance.` |
+| `403` | Entidad sin permisos para una accion administrativa | `acceso denegado. rol no autorizado.` |
+| `404` | Reporte, entidad, asignacion o alerta no encontrada | `Reporte no encontrado.`, `Entidad no encontrada o inactiva.`, `Reporte asignado no encontrado.` o `Alerta de entidad no encontrada.` |
 
 ## Reportes asignados
 
@@ -159,6 +164,79 @@ Body:
 ```
 
 Estados aceptados: `pendiente`, `en_atencion`, `atendido`, `cerrado`.
+
+## Asignacion manual de reportes
+
+### POST `/reportes/:id/asignaciones`
+
+Asigna manualmente un reporte ambiental a una entidad responsable. Este endpoint es administrativo: requiere JWT y rol `admin` o `moderador`. Las entidades con rol `entidad` no deben consumirlo.
+
+`:id` corresponde a `id_reporte`.
+
+Body minimo compatible:
+
+```json
+{
+  "id_entidad": 1
+}
+```
+
+Body con prioridad:
+
+```json
+{
+  "id_entidad": 1,
+  "tipo_asignacion": "principal",
+  "prioridad": "critica"
+}
+```
+
+Campos relevantes:
+
+| Campo | Requerido | Valores | Nota |
+| --- | --- | --- | --- |
+| `id_entidad` | Si | ID de entidad activa y permitida | La entidad debe existir, estar activa y pertenecer al alcance actual. |
+| `tipo_asignacion` | No | `principal`, `secundaria` | Si no se envia, el backend conserva su comportamiento actual. |
+| `prioridad` | No | `baja`, `media`, `alta`, `critica` | Si no se envia, el backend usa `media` por defecto para mantener compatibilidad. |
+
+Comportamiento por prioridad:
+
+| Prioridad | Comportamiento |
+| --- | --- |
+| `baja` | Crea la asignacion normal. No genera alerta persistente. |
+| `media` | Crea la asignacion normal. Es el valor por defecto. No genera alerta persistente. |
+| `alta` | Crea la asignacion y genera alerta persistente para la entidad. |
+| `critica` | Crea la asignacion, genera alerta persistente y emite Socket.IO `reporte:critico_asignado`. |
+
+Validaciones esperadas:
+
+- El reporte debe existir.
+- La entidad debe existir, estar activa y estar permitida.
+- La prioridad debe ser una de `baja`, `media`, `alta` o `critica`.
+- Solo `admin` y `moderador` pueden asignar reportes.
+- Una entidad inactiva no puede recibir asignaciones.
+
+Respuesta esperada:
+
+```json
+{
+  "status": "success",
+  "message": "Entidad asignada al reporte correctamente.",
+  "data": {
+    "asignacion": {
+      "id_reporte_entidad": 70,
+      "id_reporte": 101,
+      "id_entidad": 1,
+      "tipo_asignacion": "principal",
+      "prioridad": "critica",
+      "estado_atencion": "pendiente",
+      "comentario": null,
+      "asignado_por": 5,
+      "asignado_at": "2026-06-01T10:05:00.000Z"
+    }
+  }
+}
+```
 
 ## Alertas persistentes por entidad
 
@@ -266,6 +344,12 @@ Respuesta:
 
 Si la alerta no pertenece a la entidad autenticada, el backend responde `404`.
 
+### PATCH `/entidades/mis-alertas/:id`
+
+Alias de `PATCH /entidades/mis-alertas/:id/leer`.
+
+Tiene el mismo comportamiento: marca una alerta propia como leida usando `id_alerta_entidad`. Se documenta para que el frontend pueda usar cualquiera de las dos rutas sin cambiar la logica de integracion.
+
 ### PATCH `/entidades/mis-alertas/leer-todas`
 
 Marca todas las alertas no leidas de la entidad autenticada.
@@ -371,7 +455,21 @@ Payload esperado:
 
 Socket.IO solo emite para prioridad `critica`. Las alertas persistentes se crean para `alta` y `critica`, incluso si no hay clientes conectados.
 
-## Flujo recomendado para frontend
+## Endpoints finales para usuario entidad
+
+| Metodo | Ruta | Uso |
+| --- | --- | --- |
+| `GET` | `/entidades/mis-reportes` | Listar reportes asignados a la entidad autenticada. |
+| `GET` | `/entidades/mis-reportes/:id` | Consultar detalle de un reporte propio asignado. |
+| `PATCH` | `/entidades/mis-reportes/:id/atencion` | Actualizar estado de atencion de una asignacion propia. |
+| `GET` | `/entidades/mis-alertas` | Listar alertas propias. |
+| `GET` | `/entidades/mis-alertas/no-leidas` | Listar alertas propias no leidas. |
+| `GET` | `/entidades/mis-alertas/no-leidas/count` | Obtener contador de alertas propias no leidas. |
+| `PATCH` | `/entidades/mis-alertas/:id/leer` | Marcar alerta propia como leida. |
+| `PATCH` | `/entidades/mis-alertas/:id` | Alias para marcar alerta propia como leida. |
+| `PATCH` | `/entidades/mis-alertas/leer-todas` | Marcar todas las alertas propias como leidas. |
+
+## Flujo sugerido para frontend
 
 1. Al iniciar sesion como usuario entidad, guardar el JWT con el patron actual del frontend.
 2. Cargar reportes con `GET /entidades/mis-reportes`.
@@ -383,7 +481,7 @@ Socket.IO solo emite para prioridad `critica`. Las alertas persistentes se crean
 8. Marcar una alerta como leida cuando el usuario la abra.
 9. Permitir marcar todas como leidas desde el panel.
 
-## Recomendaciones de UI
+## Recomendaciones para el equipo frontend
 
 - Mostrar un badge con el numero de alertas no leidas.
 - Crear un panel de alertas separado del listado de reportes.
@@ -392,6 +490,8 @@ Socket.IO solo emite para prioridad `critica`. Las alertas persistentes se crean
 - No exponer filtros por `id_entidad` en la UI de usuario entidad.
 - Si el backend devuelve `403`, cerrar sesion o mostrar que el usuario no tiene permisos.
 - Si el backend devuelve `Usuario entidad sin entidad asignada.`, mostrar un mensaje operativo para contactar al administrador.
+- Consumir `PATCH /entidades/mis-alertas/:id/leer` o su alias `PATCH /entidades/mis-alertas/:id` con la misma logica de marcado como leida.
+- Para pantallas administrativas de asignacion, enviar `prioridad` solo cuando el usuario elija un valor distinto al comportamiento por defecto `media`.
 
 ## Puntos pendientes
 

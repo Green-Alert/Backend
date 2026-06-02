@@ -49,7 +49,17 @@ const createReportes = (codigoEntidad) => ([
   },
 ]);
 
+const mockEntidadActiva = (t, idEntidad = 1) => {
+  t.mock.method(EntidadModel, 'findActiveAllowedByIdOrCodigo', async ({ id_entidad }) => ({
+    id_entidad: id_entidad ?? idEntidad,
+    codigo: (id_entidad ?? idEntidad) === 1 ? 'bomberos' : 'corpoamazonia',
+    nombre: (id_entidad ?? idEntidad) === 1 ? 'Bomberos' : 'Corpoamazonia',
+    activo: 1,
+  }));
+};
+
 test('listarMisReportesEntidad usa la entidad autenticada para Bomberos', async (t) => {
+  mockEntidadActiva(t, 1);
   t.mock.method(ReporteEntidadModel, 'findByEntidad', async (idEntidad) => {
     assert.equal(idEntidad, 1);
     return {
@@ -77,6 +87,7 @@ test('listarMisReportesEntidad usa la entidad autenticada para Bomberos', async 
 });
 
 test('listarMisReportesEntidad usa entidad_id como alias autenticado para Corpoamazonia', async (t) => {
+  mockEntidadActiva(t, 2);
   t.mock.method(ReporteEntidadModel, 'findByEntidad', async (idEntidad) => {
     assert.equal(idEntidad, 2);
     return {
@@ -119,6 +130,30 @@ test('listarMisReportesEntidad responde error controlado si usuario entidad no t
 
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.message, 'Usuario entidad sin entidad asignada.');
+  assert.equal(next.mock.callCount(), 0);
+});
+
+test('listarMisReportesEntidad rechaza usuario entidad con entidad inactiva o no permitida', async (t) => {
+  t.mock.method(EntidadModel, 'findActiveAllowedByIdOrCodigo', async ({ id_entidad }) => {
+    assert.equal(id_entidad, 1);
+    return null;
+  });
+  t.mock.method(ReporteEntidadModel, 'findByEntidad', async () => {
+    assert.fail('No debe consultar reportes si la entidad autenticada no esta activa.');
+  });
+
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  const { listarMisReportesEntidad } = await import('../../src/controllers/entidad.controller.js');
+  await listarMisReportesEntidad(
+    { user: { rol: 'entidad', id_entidad: 1 }, query: {} },
+    res,
+    next
+  );
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.message, 'Entidad asociada no encontrada, inactiva o fuera de alcance.');
   assert.equal(next.mock.callCount(), 0);
 });
 
