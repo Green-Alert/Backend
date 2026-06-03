@@ -1,10 +1,65 @@
 import pool from '../config/database.js';
-import { tableExists } from '../config/schema-compat.js';
+import { clearSchemaCompatCache, tableExists } from '../config/schema-compat.js';
 import { UsuarioModel } from './usuario.model.js';
 
 const memoryTokens = new Map();
 
-const hasRefreshTokensTable = () => tableExists('refresh_tokens');
+const REFRESH_TOKEN_TABLE_REQUIRED_MESSAGE =
+  'La tabla refresh_tokens es requerida para persistencia, revocacion y logout global de refresh tokens.';
+
+const isTestEnvironment = () => process.env.NODE_ENV === 'test';
+
+const buildRefreshTokenStorageError = (cause = null) => {
+  const error = new Error(REFRESH_TOKEN_TABLE_REQUIRED_MESSAGE);
+  error.statusCode = 500;
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+};
+
+const refreshTokensTableExists = async () => tableExists('refresh_tokens');
+
+const getRefreshTokenStorageMode = async () => {
+  let hasTable = false;
+
+  try {
+    hasTable = await refreshTokensTableExists();
+  } catch (error) {
+    if (isTestEnvironment()) {
+      return 'memory';
+    }
+    throw buildRefreshTokenStorageError(error);
+  }
+
+  if (hasTable) {
+    return 'database';
+  }
+
+  if (isTestEnvironment()) {
+    return 'memory';
+  }
+
+  clearSchemaCompatCache();
+  hasTable = await refreshTokensTableExists();
+  if (hasTable) {
+    return 'database';
+  }
+
+  throw buildRefreshTokenStorageError();
+};
+
+const runRefreshTokenPersistence = async (operation) => {
+  try {
+    return await operation();
+  } catch (error) {
+    throw buildRefreshTokenStorageError(error);
+  }
+};
+
+export const clearRefreshTokenMemoryStore = () => {
+  memoryTokens.clear();
+};
 
 export const RefreshTokenModel = {
   create: async ({
@@ -14,7 +69,7 @@ export const RefreshTokenModel = {
     user_agent = null,
     ip_address = null,
   }) => {
-    if (!await hasRefreshTokensTable()) {
+    if (await getRefreshTokenStorageMode() === 'memory') {
       const id_refresh_token = memoryTokens.size + 1;
       memoryTokens.set(token_hash, {
         id_refresh_token,
@@ -28,18 +83,20 @@ export const RefreshTokenModel = {
       return id_refresh_token;
     }
 
-    const [result] = await pool.execute(
-      `INSERT INTO refresh_tokens
-         (id_usuario, token_hash, expires_at, user_agent, ip_address)
-       VALUES (?, ?, ?, ?, ?)`,
-      [id_usuario, token_hash, expires_at, user_agent, ip_address]
+    const [result] = await runRefreshTokenPersistence(() =>
+      pool.execute(
+        `INSERT INTO refresh_tokens
+           (id_usuario, token_hash, expires_at, user_agent, ip_address)
+         VALUES (?, ?, ?, ?, ?)`,
+        [id_usuario, token_hash, expires_at, user_agent, ip_address]
+      )
     );
 
     return result.insertId;
   },
 
   findActiveByHash: async (token_hash) => {
-    if (!await hasRefreshTokensTable()) {
+    if (await getRefreshTokenStorageMode() === 'memory') {
       const token = memoryTokens.get(token_hash);
       if (!token || token.revoked_at || new Date(token.expires_at).getTime() <= Date.now()) {
         return null;
@@ -56,25 +113,27 @@ export const RefreshTokenModel = {
       };
     }
 
-    const [rows] = await pool.execute(
-      `SELECT rt.id_refresh_token, rt.id_usuario, rt.token_hash, rt.expires_at,
-              u.uuid, u.nombre, u.apellido, u.email, u.rol, u.activo,
-              u.email_verificado, u.avatar_url, u.telefono, u.created_at
-       FROM refresh_tokens rt
-       INNER JOIN usuarios u ON u.id_usuario = rt.id_usuario
-       WHERE rt.token_hash = ?
-         AND rt.revoked_at IS NULL
-         AND rt.expires_at > NOW()
-         AND u.deleted_at IS NULL
-       LIMIT 1`,
-      [token_hash]
+    const [rows] = await runRefreshTokenPersistence(() =>
+      pool.execute(
+        `SELECT rt.id_refresh_token, rt.id_usuario, rt.token_hash, rt.expires_at,
+                u.uuid, u.nombre, u.apellido, u.email, u.rol, u.activo,
+                u.email_verificado, u.avatar_url, u.telefono, u.created_at
+         FROM refresh_tokens rt
+         INNER JOIN usuarios u ON u.id_usuario = rt.id_usuario
+         WHERE rt.token_hash = ?
+           AND rt.revoked_at IS NULL
+           AND rt.expires_at > NOW()
+           AND u.deleted_at IS NULL
+         LIMIT 1`,
+        [token_hash]
+      )
     );
 
     return rows[0] ?? null;
   },
 
   revokeByHash: async (token_hash) => {
-    if (!await hasRefreshTokensTable()) {
+    if (await getRefreshTokenStorageMode() === 'memory') {
       const token = memoryTokens.get(token_hash);
       if (!token || token.revoked_at) {
         return false;
@@ -83,11 +142,13 @@ export const RefreshTokenModel = {
       return true;
     }
 
-    const [result] = await pool.execute(
-      `UPDATE refresh_tokens
-       SET revoked_at = NOW()
-       WHERE token_hash = ? AND revoked_at IS NULL`,
-      [token_hash]
+    const [result] = await runRefreshTokenPersistence(() =>
+      pool.execute(
+        `UPDATE refresh_tokens
+         SET revoked_at = NOW()
+         WHERE token_hash = ? AND revoked_at IS NULL`,
+        [token_hash]
+      )
     );
 
     return result.affectedRows > 0;
@@ -100,7 +161,7 @@ export const RefreshTokenModel = {
     user_agent = null,
     ip_address = null,
   }) => {
-    if (!await hasRefreshTokensTable()) {
+    if (await getRefreshTokenStorageMode() === 'memory') {
       const current = memoryTokens.get(current_hash);
       if (!current || current.revoked_at || new Date(current.expires_at).getTime() <= Date.now()) {
         return null;
@@ -124,9 +185,10 @@ export const RefreshTokenModel = {
       };
     }
 
-    const connection = await pool.getConnection();
+    let connection = null;
 
     try {
+      connection = await pool.getConnection();
       await connection.beginTransaction();
 
       const [rows] = await connection.execute(
@@ -166,15 +228,19 @@ export const RefreshTokenModel = {
         id_refresh_token: insertResult.insertId,
       };
     } catch (error) {
-      await connection.rollback();
-      throw error;
+      if (connection) {
+        await connection.rollback();
+      }
+      throw buildRefreshTokenStorageError(error);
     } finally {
-      connection.release();
+      if (connection) {
+        connection.release();
+      }
     }
   },
 
   revokeAllForUser: async (id_usuario) => {
-    if (!await hasRefreshTokensTable()) {
+    if (await getRefreshTokenStorageMode() === 'memory') {
       let revoked = 0;
       for (const token of memoryTokens.values()) {
         if (Number(token.id_usuario) === Number(id_usuario) && !token.revoked_at) {
@@ -185,11 +251,13 @@ export const RefreshTokenModel = {
       return revoked;
     }
 
-    const [result] = await pool.execute(
-      `UPDATE refresh_tokens
-       SET revoked_at = NOW()
-       WHERE id_usuario = ? AND revoked_at IS NULL`,
-      [id_usuario]
+    const [result] = await runRefreshTokenPersistence(() =>
+      pool.execute(
+        `UPDATE refresh_tokens
+         SET revoked_at = NOW()
+         WHERE id_usuario = ? AND revoked_at IS NULL`,
+        [id_usuario]
+      )
     );
 
     return result.affectedRows;
