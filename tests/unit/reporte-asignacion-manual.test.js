@@ -41,16 +41,19 @@ const entidadBomberos = {
   activo: 1,
 };
 
-const createAsignacion = (prioridad = 'media') => ({
+const createAsignacion = ({ prioridad = 'media', tipo_asignacion = 'principal' } = {}) => ({
   id_reporte_entidad: 7,
   id_reporte: 10,
   id_entidad: 1,
-  tipo_asignacion: 'principal',
+  tipo_asignacion,
   prioridad,
   estado_atencion: 'pendiente',
 });
 
-const mockAsignacionManualBase = (t, { prioridad = 'media' } = {}) => {
+const mockAsignacionManualBase = (t, {
+  prioridad = 'media',
+  tipo_asignacion = 'principal',
+} = {}) => {
   let assignmentPayload;
 
   t.mock.method(ReporteModel, 'findById', async () => reporteBase);
@@ -60,7 +63,7 @@ const mockAsignacionManualBase = (t, { prioridad = 'media' } = {}) => {
     return 7;
   });
   t.mock.method(ReporteEntidadModel, 'findOneByReporteAndEntidad', async () => (
-    createAsignacion(prioridad)
+    createAsignacion({ prioridad, tipo_asignacion })
   ));
 
   return {
@@ -97,6 +100,56 @@ test('asignarEntidadReporte asigna manualmente a una entidad activa y permitida'
     estado_atencion: 'pendiente',
     comentario: 'Revisar incendio',
   });
+});
+
+test('asignarEntidadReporte usa tipo_asignacion principal enviado en el body', async (t) => {
+  const { getAssignmentPayload } = mockAsignacionManualBase(t, {
+    tipo_asignacion: 'principal',
+  });
+  t.mock.method(AlertaEntidadModel, 'create', async () => {
+    assert.fail('No debe crear alerta persistente para prioridad media.');
+  });
+
+  const req = {
+    params: { id: '10' },
+    body: {
+      codigo_entidad: 'bomberos',
+      tipo_asignacion: 'principal',
+    },
+    user: { sub: 1, rol: 'admin' },
+  };
+  const res = createRes();
+
+  await asignarEntidadReporte(req, res, assert.fail);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(getAssignmentPayload().tipo_asignacion, 'principal');
+  assert.equal(res.body.data.asignacion.tipo_asignacion, 'principal');
+});
+
+test('asignarEntidadReporte usa tipo_asignacion apoyo enviado en el body', async (t) => {
+  const { getAssignmentPayload } = mockAsignacionManualBase(t, {
+    tipo_asignacion: 'apoyo',
+  });
+  t.mock.method(AlertaEntidadModel, 'create', async () => {
+    assert.fail('No debe crear alerta persistente para prioridad media.');
+  });
+
+  const req = {
+    params: { id: '10' },
+    body: {
+      codigo_entidad: 'bomberos',
+      tipo_asignacion: 'apoyo',
+    },
+    user: { sub: 1, rol: 'admin' },
+  };
+  const res = createRes();
+
+  await asignarEntidadReporte(req, res, assert.fail);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(getAssignmentPayload().tipo_asignacion, 'apoyo');
+  assert.equal(res.body.data.asignacion.tipo_asignacion, 'apoyo');
 });
 
 test('asignarEntidadReporte con prioridad critica genera alerta y evento socket', async (t) => {
@@ -205,6 +258,31 @@ test('asignarEntidadReporte rechaza prioridad invalida', async (t) => {
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.status, 'error');
   assert.equal(res.body.message, 'La prioridad debe ser uno de: baja, media, alta, critica.');
+});
+
+test('asignarEntidadReporte rechaza tipo_asignacion invalido', async (t) => {
+  t.mock.method(ReporteModel, 'findById', async () => {
+    assert.fail('No debe consultar reporte si tipo_asignacion es invalido.');
+  });
+  t.mock.method(ReporteEntidadModel, 'createAssignment', async () => {
+    assert.fail('No debe crear asignacion con tipo_asignacion invalido.');
+  });
+
+  const req = {
+    params: { id: '10' },
+    body: {
+      codigo_entidad: 'bomberos',
+      tipo_asignacion: 'secundaria',
+    },
+    user: { sub: 1, rol: 'admin' },
+  };
+  const res = createRes();
+
+  await asignarEntidadReporte(req, res, assert.fail);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.status, 'error');
+  assert.equal(res.body.message, 'El tipo_asignacion debe ser uno de: principal, apoyo.');
 });
 
 test('asignarEntidadReporte rechaza entidades inactivas o fuera de alcance', async (t) => {
