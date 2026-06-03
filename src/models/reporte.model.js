@@ -441,6 +441,7 @@ export const ReporteModel = {
       `SELECT
          COUNT(*)                                                                          AS total_reportes,
          SUM(CASE WHEN MONTH(created_at)=MONTH(NOW()) AND YEAR(created_at)=YEAR(NOW()) THEN 1 ELSE 0 END) AS reportes_este_mes,
+         SUM(CASE WHEN estado='pendiente'    THEN 1 ELSE 0 END)                          AS pendientes,
          SUM(CASE WHEN estado='en_proceso'   THEN 1 ELSE 0 END)                          AS en_proceso,
          SUM(CASE WHEN estado='resuelto'     THEN 1 ELSE 0 END)                          AS resueltos,
          COUNT(DISTINCT CASE WHEN municipio IS NOT NULL AND municipio!='' THEN municipio END) AS municipios_activos,
