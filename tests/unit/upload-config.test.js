@@ -36,6 +36,23 @@ const listen = (app) => new Promise((resolve) => {
   const server = app.listen(0, () => resolve(server));
 });
 
+const PNG_BYTES = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from('fake-image'),
+]);
+
+const WEBP_BYTES = Buffer.concat([
+  Buffer.from('RIFF', 'ascii'),
+  Buffer.from([0x10, 0x00, 0x00, 0x00]),
+  Buffer.from('WEBPVP8 ', 'ascii'),
+  Buffer.from('fake-webp'),
+]);
+
+const JPEG_BYTES = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.from('fake-jpeg'),
+]);
+
 test('upload.single guarda archivo en memoria y conserva filename compatible', async () => {
   const app = express();
   app.post('/upload', upload.single('file'), (req, res) => {
@@ -51,7 +68,7 @@ test('upload.single guarda archivo en memoria y conserva filename compatible', a
   try {
     const port = server.address().port;
     const formData = new FormData();
-    formData.append('file', new Blob(['fake-image'], { type: 'image/png' }), 'evidencia.png');
+    formData.append('file', new Blob([PNG_BYTES], { type: 'image/png' }), 'evidencia.png');
 
     const response = await fetch(`http://127.0.0.1:${port}/upload`, {
       method: 'POST',
@@ -64,6 +81,37 @@ test('upload.single guarda archivo en memoria y conserva filename compatible', a
     assert.match(body.filename, /^[0-9a-f-]{36}\.png$/);
     assert.equal(body.originalname, 'evidencia.png');
     assert.equal(body.path, null);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('upload.single rechaza MIME valido con contenido falso', async () => {
+  const app = express();
+  app.post('/upload', upload.single('file'), (_req, res) => {
+    res.json({ ok: true });
+  });
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  });
+
+  const server = await listen(app);
+  try {
+    const port = server.address().port;
+    const formData = new FormData();
+    formData.append('file', new Blob(['%PDF-1.7 contenido falso'], { type: 'image/png' }), 'falso.png');
+
+    const response = await fetch(`http://127.0.0.1:${port}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(
+      body.message,
+      'El contenido del archivo "falso.png" no coincide con el tipo declarado o esta corrupto.'
+    );
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -90,9 +138,9 @@ test('uploadMultiple mantiene campos file y files', async () => {
   try {
     const port = server.address().port;
     const formData = new FormData();
-    formData.append('file', new Blob(['main'], { type: 'image/png' }), 'principal.png');
-    formData.append('files', new Blob(['one'], { type: 'image/webp' }), 'uno.webp');
-    formData.append('files', new Blob(['two'], { type: 'image/jpeg' }), 'dos.jpg');
+    formData.append('file', new Blob([PNG_BYTES], { type: 'image/png' }), 'principal.png');
+    formData.append('files', new Blob([WEBP_BYTES], { type: 'image/webp' }), 'uno.webp');
+    formData.append('files', new Blob([JPEG_BYTES], { type: 'image/jpeg' }), 'dos.jpg');
 
     const response = await fetch(`http://127.0.0.1:${port}/upload-multiple`, {
       method: 'POST',

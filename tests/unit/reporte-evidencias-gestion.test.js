@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   addEvidenciaReporte,
   deleteEvidenciaReporte,
   listEvidenciasReporte,
 } from '../../src/controllers/reporte.controller.js';
 import { EvidenciaModel } from '../../src/models/evidencia.model.js';
-const FAKE_IMAGE_SHA256 = 'a8eb701c6f567b08661c2604364dd595455b811d2759d2029b465935b561c86b';
 import { ReporteModel } from '../../src/models/reporte.model.js';
 import {
   resetCloudinaryClientForTest,
@@ -31,6 +31,13 @@ const reporte = {
   id_usuario: 7,
   estado: 'pendiente',
 };
+
+const VALID_PNG_BUFFER = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from('fake-image'),
+]);
+
+const FAKE_IMAGE_SHA256 = createHash('sha256').update(VALID_PNG_BUFFER).digest('hex');
 
 test.afterEach(() => {
   resetCloudinaryClientForTest();
@@ -95,7 +102,7 @@ test('addEvidenciaReporte agrega evidencia al reporte como moderador', async (t)
       filename: 'evidencia.png',
       originalname: 'foto.png',
       size: 1024,
-      buffer: Buffer.from('fake-image'),
+      buffer: VALID_PNG_BUFFER,
     },
   };
   const res = createResponse();
@@ -119,6 +126,37 @@ test('addEvidenciaReporte agrega evidencia al reporte como moderador', async (t)
   assert.equal(evidencia.cloudinary_resource_type, 'image');
   assert.equal(evidencia.cloudinary_metadata.bytes, 1024);
   assert.equal(evidencia.orden, 0);
+  assert.equal(next.mock.callCount(), 0);
+});
+
+test('addEvidenciaReporte rechaza archivo con contenido falso', async (t) => {
+  t.mock.method(ReporteModel, 'findById', async () => reporte);
+  t.mock.method(EvidenciaModel, 'create', async () => {
+    throw new Error('No debe guardar evidencia con contenido falso');
+  });
+
+  const req = {
+    params: { id: '15' },
+    user: { sub: 9, rol: 'moderador' },
+    file: {
+      mimetype: 'image/png',
+      filename: 'falso.png',
+      originalname: 'falso.png',
+      size: 1024,
+      buffer: Buffer.from('%PDF-1.7 contenido falso'),
+    },
+  };
+  const res = createResponse();
+  const next = t.mock.fn();
+
+  await addEvidenciaReporte(req, res, next);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(
+    res.body.message,
+    'El contenido del archivo "falso.png" no coincide con el tipo declarado o esta corrupto.'
+  );
+  assert.equal(EvidenciaModel.create.mock.callCount(), 0);
   assert.equal(next.mock.callCount(), 0);
 });
 

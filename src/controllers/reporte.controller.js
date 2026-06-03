@@ -23,6 +23,7 @@ import { crearAlertaDesdeAsignacionReporte } from '../services/alerta-entidad.se
 import { notificarReporteCriticoAsignado } from '../config/socket.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { crearNotificacion } from './notificacion.controller.js';
+import { validateUploadedFilesContent } from '../../middlewares/upload.middleware.js';
 
 const ANONYMOUS_VIEW_THROTTLE_MS = 5 * 60 * 1000;
 const anonymousViewThrottle = new Map();
@@ -147,7 +148,7 @@ const validateReporteEvidenceFiles = (files) => {
     return 'Solo puedes adjuntar un video por reporte.';
   }
 
-  return null;
+  return validateUploadedFilesContent(files);
 };
 
 export const sugerirContenidoReporte = async (req, res, next) => {
@@ -238,6 +239,19 @@ const cleanupCloudinaryUploads = async (uploads) => {
         resourceType: upload.resource_type || 'image',
       }))
   );
+};
+
+const rollbackCreatedReporte = async (idReporte, cloudinaryUploads = []) => {
+  const results = await Promise.allSettled([
+    cleanupCloudinaryUploads(cloudinaryUploads),
+    idReporte ? ReporteModel.remove(idReporte) : Promise.resolve(),
+  ]);
+
+  results
+    .filter((result) => result.status === 'rejected')
+    .forEach((result) => {
+      console.error('[reportes] rollback parcial fallido:', result.reason?.message || result.reason);
+    });
 };
 
 const shouldDeleteFromCloudinary = (evidencia) => (
@@ -422,46 +436,49 @@ export const createReporte = async (req, res, next) => {
       scoreEvidencias.evidencias.map((item, index) => [index, item.hash_sha256])
     );
 
-    const idReporte = await ReporteModel.create({
-      id_usuario:       req.user.sub,
-      tipo_contaminacion: tipoContaminacion,
-      subcategoria:        subcategoria?.trim() || null,
-      nivel_severidad:    nivelSeveridad,
-      titulo:             titulo.trim(),
-      descripcion:        descripcion?.trim() || null,
-      direccion:          direccion.trim(),
-      municipio:          municipio?.trim() || null,
-      departamento:       departamento?.trim() || null,
-      latitud:            parsedLatitud.value,
-      longitud:           parsedLongitud.value,
-      confianza_evidencia: scoreEvidencias.score,
-    });
-
-    let reporte = await ReporteModel.findById(idReporte);
-
-    let iaAnalysis;
-    if (iaPayload.procesado) {
-      iaAnalysis = iaPayload.analysis;
-    } else {
-      iaAnalysis = analyzeReporte({
-        ...reporte,
-        tipo_contaminacion: tipoContaminacion,
-        nivel_severidad: nivelSeveridad,
-        titulo: titulo.trim(),
-        descripcion: descripcion?.trim() || null,
-        direccion: direccion.trim(),
-        municipio: municipio?.trim() || null,
-        departamento: departamento?.trim() || null,
-        latitud: parsedLatitud.value,
-        longitud: parsedLongitud.value,
-      });
-    }
-
-    await ReporteModel.updateIaAnalysis(idReporte, iaAnalysis);
-    reporte = await ReporteModel.findById(idReporte);
-
     const cloudinaryUploads = [];
+    let idReporte = null;
+    let reporte = null;
+
     try {
+      idReporte = await ReporteModel.create({
+        id_usuario:       req.user.sub,
+        tipo_contaminacion: tipoContaminacion,
+        subcategoria:        subcategoria?.trim() || null,
+        nivel_severidad:    nivelSeveridad,
+        titulo:             titulo.trim(),
+        descripcion:        descripcion?.trim() || null,
+        direccion:          direccion.trim(),
+        municipio:          municipio?.trim() || null,
+        departamento:       departamento?.trim() || null,
+        latitud:            parsedLatitud.value,
+        longitud:           parsedLongitud.value,
+        confianza_evidencia: scoreEvidencias.score,
+      });
+
+      reporte = await ReporteModel.findById(idReporte);
+
+      let iaAnalysis;
+      if (iaPayload.procesado) {
+        iaAnalysis = iaPayload.analysis;
+      } else {
+        iaAnalysis = analyzeReporte({
+          ...reporte,
+          tipo_contaminacion: tipoContaminacion,
+          nivel_severidad: nivelSeveridad,
+          titulo: titulo.trim(),
+          descripcion: descripcion?.trim() || null,
+          direccion: direccion.trim(),
+          municipio: municipio?.trim() || null,
+          departamento: departamento?.trim() || null,
+          latitud: parsedLatitud.value,
+          longitud: parsedLongitud.value,
+        });
+      }
+
+      await ReporteModel.updateIaAnalysis(idReporte, iaAnalysis);
+      reporte = await ReporteModel.findById(idReporte);
+
       for (const [index, file] of uploadedFiles.entries()) {
         const { uploadResult, evidencia } = await uploadEvidenceToCloudinary(file, {
           idReporte,
@@ -474,7 +491,7 @@ export const createReporte = async (req, res, next) => {
         await EvidenciaModel.create(evidencia);
       }
     } catch (error) {
-      await cleanupCloudinaryUploads(cloudinaryUploads);
+      await rollbackCreatedReporte(idReporte, cloudinaryUploads);
       throw error;
     }
 
@@ -1144,6 +1161,11 @@ export const addEvidenciaReporte = async (req, res, next) => {
 
     if (!req.file) {
       return errorResponse(res, 'Archivo de evidencia requerido.', 400);
+    }
+
+    const contentError = validateUploadedFilesContent([req.file]);
+    if (contentError) {
+      return errorResponse(res, contentError, 400);
     }
 
     const scoreEvidencia = await calcularScoreEvidencias([req.file], reporte.nivel_severidad);
