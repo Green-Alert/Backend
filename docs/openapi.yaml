@@ -1,0 +1,1560 @@
+openapi: 3.0.3
+info:
+  title: Green Alert Backend API
+  version: 0.1.0
+  description: |
+    Especificacion OpenAPI inicial del backend de Green Alert.
+
+    Las rutas se montan con `API_PREFIX`. Por defecto `API_PREFIX` esta vacio,
+    por lo que las rutas reales son `/auth`, `/reportes`, `/categorias`, etc.
+    En desarrollo el frontend puede usar `/api` si Vite reescribe ese prefijo.
+servers:
+  - url: http://localhost:3000
+    description: Backend local sin API_PREFIX
+  - url: http://localhost:3000/api
+    description: Backend local cuando API_PREFIX=/api
+tags:
+  - name: Salud
+  - name: Autenticacion
+  - name: Usuarios
+  - name: Reportes
+  - name: Evidencias
+  - name: Entidades
+  - name: Alertas
+  - name: Notificaciones
+  - name: Categorias
+  - name: Analitica
+  - name: Chatbot
+  - name: Administracion
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdParam:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  schemas:
+    ApiSuccess:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Operacion realizada correctamente.
+        data:
+          nullable: true
+    ApiError:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Recurso no encontrado.
+    AuthTokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          example: 5ab9f4b2f8c64a0f...
+    Usuario:
+      type: object
+      properties:
+        id_usuario:
+          type: integer
+          example: 7
+        uuid:
+          type: string
+          example: 6ab3a0a3-7a5d-4d3b-a6e3-4f6b5c86aa20
+        nombre:
+          type: string
+          example: Juan
+        apellido:
+          type: string
+          example: Perez
+        email:
+          type: string
+          format: email
+          example: juan@example.com
+        rol:
+          type: string
+          enum: [ciudadano, moderador, admin, entidad]
+          example: ciudadano
+        telefono:
+          type: string
+          nullable: true
+          example: "+573001112233"
+        activo:
+          type: boolean
+          example: true
+    ReporteEstado:
+      type: string
+      description: |
+        La API acepta `en proceso` y lo normaliza internamente a `en_proceso`.
+        Los valores persistidos usan guion bajo.
+      enum: [pendiente, en_proceso, resuelto, rechazado]
+      example: pendiente
+    ReporteEstadoEntrada:
+      type: string
+      enum: [pendiente, "en proceso", en_proceso, resuelto, rechazado]
+      example: en proceso
+    NivelSeveridad:
+      type: string
+      enum: [bajo, medio, alto, critico]
+      example: alto
+    Reporte:
+      type: object
+      properties:
+        id_reporte:
+          type: integer
+          example: 15
+        uuid:
+          type: string
+          example: 2fbd8c03-d7c7-45c2-8a5d-f80e7e15ff0a
+        id_usuario:
+          type: integer
+          example: 7
+        tipo_contaminacion:
+          type: string
+          example: agua
+        subcategoria:
+          type: string
+          nullable: true
+          example: rio_contaminado
+        nivel_severidad:
+          $ref: "#/components/schemas/NivelSeveridad"
+        titulo:
+          type: string
+          example: Contaminacion en quebrada
+        descripcion:
+          type: string
+          nullable: true
+          example: Se observa agua oscura y mal olor.
+        direccion:
+          type: string
+          example: Calle 10
+        municipio:
+          type: string
+          nullable: true
+          example: Valledupar
+        departamento:
+          type: string
+          nullable: true
+          example: Cesar
+        latitud:
+          type: number
+          nullable: true
+          example: 10.45
+        longitud:
+          type: number
+          nullable: true
+          example: -73.25
+        estado:
+          $ref: "#/components/schemas/ReporteEstado"
+        confianza_evidencia:
+          type: number
+          nullable: true
+          example: 86
+        created_at:
+          type: string
+          format: date-time
+    Evidencia:
+      type: object
+      properties:
+        id_evidencia:
+          type: integer
+          example: 22
+        id_reporte:
+          type: integer
+          example: 15
+        tipo_archivo:
+          type: string
+          enum: [imagen, video]
+          example: imagen
+        url_archivo:
+          type: string
+          format: uri
+          example: https://res.cloudinary.com/demo/image/upload/green-alert/reportes/foto.png
+        nombre_original:
+          type: string
+          example: foto.png
+        mime_type:
+          type: string
+          enum: [image/jpeg, image/jpg, image/png, image/webp, image/gif, video/mp4, video/quicktime]
+          example: image/png
+        tamano_bytes:
+          type: integer
+          example: 102400
+        hash_sha256:
+          type: string
+          nullable: true
+    Categoria:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: agua
+        nombre:
+          type: string
+          example: Contaminacion del agua
+        descripcion:
+          type: string
+          example: Reportes relacionados con fuentes hidricas.
+        activo:
+          type: boolean
+          example: true
+    TipoAsignacion:
+      type: string
+      enum: [principal, apoyo]
+      example: principal
+    PrioridadAsignacion:
+      type: string
+      enum: [baja, media, alta, critica]
+      example: critica
+    EstadoAtencion:
+      type: string
+      enum: [pendiente, en_atencion, atendido, cerrado]
+      example: en_atencion
+    AsignacionEntidad:
+      type: object
+      properties:
+        id_reporte_entidad:
+          type: integer
+          example: 70
+        id_reporte:
+          type: integer
+          example: 15
+        id_entidad:
+          type: integer
+          example: 1
+        tipo_asignacion:
+          $ref: "#/components/schemas/TipoAsignacion"
+        prioridad:
+          $ref: "#/components/schemas/PrioridadAsignacion"
+        estado_atencion:
+          $ref: "#/components/schemas/EstadoAtencion"
+        comentario:
+          type: string
+          nullable: true
+          example: Equipo en desplazamiento.
+    Entidad:
+      type: object
+      properties:
+        id_entidad:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: bomberos
+        nombre:
+          type: string
+          example: Bomberos
+        activa:
+          type: boolean
+          example: true
+    AlertaEntidad:
+      type: object
+      properties:
+        id_alerta_entidad:
+          type: integer
+          example: 12
+        tipo_alerta:
+          type: string
+          example: reporte_critico_asignado
+        prioridad:
+          $ref: "#/components/schemas/PrioridadAsignacion"
+        titulo:
+          type: string
+          example: Reporte critico asignado
+        mensaje:
+          type: string
+          example: Se asigno un reporte critico a tu entidad.
+        leida:
+          type: boolean
+          example: false
+    Notificacion:
+      type: object
+      properties:
+        uuid:
+          type: string
+          example: b4fd9f48-6a61-48d0-bd56-68f8f15460fa
+        tipo:
+          type: string
+          example: reporte_asignado_entidad
+        titulo:
+          type: string
+          example: Reporte actualizado
+        mensaje:
+          type: string
+          example: Tu reporte cambio de estado.
+        leida:
+          type: boolean
+          example: false
+  responses:
+    BadRequest:
+      description: Solicitud invalida.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            status: error
+            message: El nivel de severidad debe ser uno de: bajo, medio, alto, critico.
+    Unauthorized:
+      description: Token ausente, invalido o credenciales incorrectas.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            status: error
+            message: Acceso denegado. Token no proporcionado.
+    Forbidden:
+      description: Usuario autenticado sin permisos suficientes.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            status: error
+            message: Acceso denegado. Rol no autorizado.
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            status: error
+            message: Reporte no encontrado.
+    Conflict:
+      description: Conflicto con datos existentes.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            status: error
+            message: Ya existe una cuenta registrada con ese correo.
+    ServerError:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            status: error
+            message: Error interno del servidor.
+paths:
+  /health:
+    get:
+      tags: [Salud]
+      summary: Verifica estado del servidor y base de datos.
+      responses:
+        "200":
+          description: Servicio disponible.
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /auth/register:
+    post:
+      tags: [Autenticacion]
+      summary: Registra un usuario ciudadano.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, apellido, email, password]
+              properties:
+                nombre:
+                  type: string
+                  example: Juan
+                apellido:
+                  type: string
+                  example: Perez
+                email:
+                  type: string
+                  format: email
+                  example: juan@example.com
+                password:
+                  type: string
+                  format: password
+                  example: Password123
+                telefono:
+                  type: string
+                  example: "+573001112233"
+      responses:
+        "201":
+          description: Usuario creado y tokens emitidos.
+          content:
+            application/json:
+              example:
+                status: success
+                message: Cuenta creada correctamente. Verifica tu email con el codigo enviado.
+                data:
+                  user:
+                    id_usuario: 7
+                    email: juan@example.com
+                    rol: ciudadano
+                  accessToken: eyJ...
+                  refreshToken: 90f...
+                  pendingEmailVerification: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /auth/login:
+    post:
+      tags: [Autenticacion]
+      summary: Inicia sesion con email y contrasena.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: juan@example.com
+                password:
+                  type: string
+                  format: password
+                  example: Password123
+      responses:
+        "200":
+          description: Sesion iniciada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /auth/refresh:
+    post:
+      tags: [Autenticacion]
+      summary: Rota refresh token y emite nuevo access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: Tokens renovados.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/oauth/exchange:
+    post:
+      tags: [Autenticacion]
+      summary: Canjea codigo temporal OAuth por tokens del backend.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+      responses:
+        "200":
+          description: Tokens emitidos.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/logout:
+    post:
+      tags: [Autenticacion]
+      summary: Cierra sesion individual o global.
+      description: Logout global requiere JWT cuando `allDevices` es true.
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        "200":
+          description: Sesion cerrada.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/perfil:
+    get:
+      tags: [Usuarios]
+      summary: Obtiene perfil del usuario autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Perfil obtenido.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      tags: [Usuarios]
+      summary: Actualiza perfil del usuario autenticado.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                apellido:
+                  type: string
+                telefono:
+                  type: string
+      responses:
+        "200":
+          description: Perfil actualizado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/avatar:
+    patch:
+      tags: [Usuarios]
+      summary: Actualiza avatar con archivo de imagen.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Avatar actualizado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/cambiar-contrasena:
+    patch:
+      tags: [Usuarios]
+      summary: Cambia contrasena del usuario autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Contrasena actualizada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/notificaciones:
+    patch:
+      tags: [Usuarios]
+      summary: Actualiza preferencias de notificacion.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            example:
+              email_alerts: true
+              push_notifications: false
+              report_updates: true
+              weekly_summary: false
+      responses:
+        "200":
+          description: Preferencias actualizadas.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/verify-email:
+    get:
+      tags: [Autenticacion]
+      summary: Verifica email usando token de enlace.
+      parameters:
+        - in: query
+          name: token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email verificado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /auth/enviar-verificacion:
+    post:
+      tags: [Autenticacion]
+      summary: Envia OTP de verificacion de email.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OTP enviado.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/verificar-email:
+    post:
+      tags: [Autenticacion]
+      summary: Verifica email usando OTP.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            example:
+              otp: "123456"
+      responses:
+        "200":
+          description: Email verificado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/forgot-password:
+    post:
+      tags: [Autenticacion]
+      summary: Solicita recuperacion de contrasena.
+      responses:
+        "200":
+          description: Solicitud procesada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /auth/reset-password:
+    post:
+      tags: [Autenticacion]
+      summary: Restablece contrasena con token.
+      responses:
+        "200":
+          description: Contrasena restablecida.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /auth/google/url:
+    get:
+      tags: [Autenticacion]
+      summary: Genera URL de autorizacion de Google.
+      responses:
+        "200":
+          description: URL generada.
+  /auth/google:
+    post:
+      tags: [Autenticacion]
+      summary: Login con access token de Google.
+      responses:
+        "200":
+          description: Login completado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /auth/google/login:
+    post:
+      tags: [Autenticacion]
+      summary: Login con id_token de Google.
+      responses:
+        "200":
+          description: Login completado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /auth/google/callback:
+    get:
+      tags: [Autenticacion]
+      summary: Callback OAuth de Google.
+      responses:
+        "302":
+          description: Redireccion al frontend con codigo temporal.
+  /auth/facebook/url:
+    get:
+      tags: [Autenticacion]
+      summary: Genera URL de autorizacion de Facebook.
+      responses:
+        "200":
+          description: URL generada.
+  /auth/facebook:
+    post:
+      tags: [Autenticacion]
+      summary: Login con Facebook.
+      responses:
+        "200":
+          description: Login completado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /auth/facebook/callback:
+    get:
+      tags: [Autenticacion]
+      summary: Callback OAuth de Facebook.
+      responses:
+        "302":
+          description: Redireccion al frontend con codigo temporal.
+  /reportes:
+    get:
+      tags: [Reportes]
+      summary: Lista reportes con filtros.
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - in: query
+          name: estado
+          schema:
+            $ref: "#/components/schemas/ReporteEstadoEntrada"
+        - in: query
+          name: tipo_contaminacion
+          schema:
+            type: string
+        - in: query
+          name: nivel_severidad
+          schema:
+            $ref: "#/components/schemas/NivelSeveridad"
+        - in: query
+          name: municipio
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Reportes obtenidos.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      tags: [Reportes]
+      summary: Crea un reporte ambiental con evidencias opcionales.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [tipo_contaminacion, nivel_severidad, titulo, direccion]
+              properties:
+                tipo_contaminacion:
+                  type: string
+                  example: agua
+                subcategoria:
+                  type: string
+                  example: rio_contaminado
+                nivel_severidad:
+                  $ref: "#/components/schemas/NivelSeveridad"
+                titulo:
+                  type: string
+                  example: Contaminacion en quebrada
+                descripcion:
+                  type: string
+                direccion:
+                  type: string
+                  example: Calle 10
+                municipio:
+                  type: string
+                departamento:
+                  type: string
+                latitud:
+                  type: number
+                longitud:
+                  type: number
+                file:
+                  type: string
+                  format: binary
+                files:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "201":
+          description: Reporte creado.
+        "400":
+          description: Datos invalidos, tipo de archivo no permitido, mas de 10 evidencias o mas de un video.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                evidenciaFalsa:
+                  value:
+                    status: error
+                    message: El contenido del archivo "falso.png" no coincide con el tipo declarado o esta corrupto.
+                exceso:
+                  value:
+                    status: error
+                    message: Solo puedes adjuntar hasta 10 evidencias por reporte.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /reportes/{id}:
+    get:
+      tags: [Reportes]
+      summary: Obtiene un reporte por ID.
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Reporte obtenido.
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Reportes]
+      summary: Actualiza un reporte.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            example:
+              estado: en proceso
+              comentario_moderacion: Validado por moderador.
+      responses:
+        "200":
+          description: Reporte actualizado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Reportes]
+      summary: Elimina logicamente un reporte.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Reporte eliminado.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reportes/mis-reportes:
+    get:
+      tags: [Reportes]
+      summary: Lista reportes del usuario autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Reportes propios obtenidos.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /reportes/{id}/like:
+    post:
+      tags: [Reportes]
+      summary: Alterna like del usuario autenticado sobre un reporte.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Like registrado o retirado.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reportes/{id}/asignaciones:
+    post:
+      tags: [Entidades]
+      summary: Asigna manualmente un reporte a una entidad responsable.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_entidad:
+                  type: integer
+                  example: 1
+                codigo_entidad:
+                  type: string
+                  example: bomberos
+                tipo_asignacion:
+                  $ref: "#/components/schemas/TipoAsignacion"
+                prioridad:
+                  $ref: "#/components/schemas/PrioridadAsignacion"
+                comentario:
+                  type: string
+                  example: Atender de forma prioritaria.
+            example:
+              id_entidad: 1
+              tipo_asignacion: apoyo
+              prioridad: critica
+      responses:
+        "201":
+          description: Reporte asignado a entidad.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reportes/{id}/evidencias:
+    get:
+      tags: [Evidencias]
+      summary: Lista evidencias de un reporte.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Evidencias obtenidas.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Evidencias]
+      summary: Agrega una evidencia a un reporte existente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Evidencia agregada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reportes/{id}/evidencias/{evidenciaId}:
+    delete:
+      tags: [Evidencias]
+      summary: Elimina logicamente una evidencia y su asset remoto.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+        - in: path
+          name: evidenciaId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Evidencia eliminada.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /reportes/analizar-imagen:
+    post:
+      tags: [Reportes]
+      summary: Analiza una imagen para clasificacion asistida.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imagen:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Imagen analizada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /reportes/sugerir-contenido:
+    post:
+      tags: [Reportes]
+      summary: Sugiere titulo y descripcion desde evidencias.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Contenido sugerido.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /reportes/stats:
+    get:
+      tags: [Analitica]
+      summary: Estadisticas generales de reportes.
+      responses:
+        "200":
+          description: Estadisticas obtenidas.
+  /reportes/stats/categoria:
+    get:
+      tags: [Analitica]
+      summary: Estadisticas de reportes por categoria.
+      responses:
+        "200":
+          description: Estadisticas obtenidas.
+  /reportes/stats/timeline:
+    get:
+      tags: [Analitica]
+      summary: Serie temporal de reportes.
+      responses:
+        "200":
+          description: Estadisticas obtenidas.
+  /reportes/stats/heatmap:
+    get:
+      tags: [Analitica]
+      summary: Puntos para mapa de calor.
+      responses:
+        "200":
+          description: Puntos obtenidos.
+  /reportes/stats/ia:
+    get:
+      tags: [Analitica]
+      summary: Estadisticas de analisis IA.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Estadisticas obtenidas.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reportes/trending:
+    get:
+      tags: [Analitica]
+      summary: Lista reportes destacados por actividad.
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        "200":
+          description: Reportes obtenidos.
+  /reportes/export:
+    get:
+      tags: [Analitica]
+      summary: Exporta reportes para administracion.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Export generado.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reportes/zonas-riesgo:
+    get:
+      tags: [Analitica]
+      summary: Calcula zonas de riesgo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: dias
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+        - in: query
+          name: tipo
+          schema:
+            type: string
+        - in: query
+          name: min_score
+          schema:
+            type: number
+            minimum: 0
+            maximum: 100
+      responses:
+        "200":
+          description: Zonas obtenidas.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reportes/alertas-predictivas:
+    get:
+      tags: [Analitica]
+      summary: Lista alertas predictivas.
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - in: query
+          name: nivel_min
+          schema:
+            type: string
+            enum: [bajo, medio, alto, critico]
+        - in: query
+          name: limite
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alertas obtenidas.
+  /categorias:
+    get:
+      tags: [Categorias]
+      summary: Lista categorias activas.
+      responses:
+        "200":
+          description: Categorias obtenidas.
+    post:
+      tags: [Categorias]
+      summary: Crea una categoria de riesgo.
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Categoria creada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /categorias/{codigo}:
+    get:
+      tags: [Categorias]
+      summary: Obtiene detalle de una categoria.
+      parameters:
+        - in: path
+          name: codigo
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Categoria obtenida.
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Categorias]
+      summary: Actualiza una categoria.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: codigo
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Categoria actualizada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /categorias/{codigo}/estado:
+    patch:
+      tags: [Categorias]
+      summary: Activa o desactiva una categoria.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Estado actualizado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /categorias/{codigo}/reportes:
+    get:
+      tags: [Categorias]
+      summary: Lista reportes de una categoria.
+      responses:
+        "200":
+          description: Reportes obtenidos.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /categorias/estadisticas/resumen:
+    get:
+      tags: [Analitica]
+      summary: Resumen estadistico de categorias.
+      responses:
+        "200":
+          description: Resumen obtenido.
+  /categorias/estadisticas/por-severidad:
+    get:
+      tags: [Analitica]
+      summary: Estadisticas por severidad.
+      responses:
+        "200":
+          description: Estadisticas obtenidas.
+  /entidades:
+    get:
+      tags: [Entidades]
+      summary: Lista entidades institucionales.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Entidades obtenidas.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /entidades/{id}/reportes:
+    get:
+      tags: [Entidades]
+      summary: Lista reportes asignados a una entidad.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Reportes obtenidos.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /entidades/mis-reportes:
+    get:
+      tags: [Entidades]
+      summary: Lista reportes de la entidad autenticada.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Reportes asignados obtenidos.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /entidades/mis-reportes/{id}:
+    get:
+      tags: [Entidades]
+      summary: Obtiene un reporte asignado a la entidad autenticada.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Reporte obtenido.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /entidades/mis-reportes/{id}/atencion:
+    patch:
+      tags: [Entidades]
+      summary: Actualiza estado de atencion de la entidad autenticada.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            example:
+              estado_atencion: en_atencion
+              comentario: Equipo en desplazamiento.
+      responses:
+        "200":
+          description: Atencion actualizada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /entidades/mis-alertas:
+    get:
+      tags: [Alertas]
+      summary: Lista alertas de la entidad autenticada.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Alertas obtenidas.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /entidades/mis-alertas/no-leidas:
+    get:
+      tags: [Alertas]
+      summary: Lista alertas no leidas de la entidad autenticada.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Alertas no leidas obtenidas.
+  /entidades/mis-alertas/no-leidas/count:
+    get:
+      tags: [Alertas]
+      summary: Cuenta alertas no leidas de la entidad autenticada.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Contador obtenido.
+  /entidades/mis-alertas/leer-todas:
+    patch:
+      tags: [Alertas]
+      summary: Marca todas las alertas propias como leidas.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Alertas actualizadas.
+  /entidades/mis-alertas/{id}/leer:
+    patch:
+      tags: [Alertas]
+      summary: Marca una alerta propia como leida.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Alerta marcada.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /entidades/mis-alertas/{id}:
+    patch:
+      tags: [Alertas]
+      summary: Alias para marcar una alerta propia como leida.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Alerta marcada.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /notificaciones:
+    get:
+      tags: [Notificaciones]
+      summary: Lista notificaciones del usuario autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notificaciones obtenidas.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /notificaciones/contador:
+    get:
+      tags: [Notificaciones]
+      summary: Cuenta notificaciones no leidas.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Contador obtenido.
+  /notificaciones/fcm-token:
+    post:
+      tags: [Notificaciones]
+      summary: Registra token FCM del dispositivo.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            example:
+              token: fcm-device-token
+      responses:
+        "200":
+          description: Token registrado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /notificaciones/marcar-todas:
+    patch:
+      tags: [Notificaciones]
+      summary: Marca todas las notificaciones como leidas.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notificaciones actualizadas.
+  /notificaciones/{uuid}/leida:
+    patch:
+      tags: [Notificaciones]
+      summary: Marca una notificacion como leida.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notificacion marcada.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /notificaciones/{uuid}:
+    delete:
+      tags: [Notificaciones]
+      summary: Elimina una notificacion.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notificacion eliminada.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/usuarios/stats:
+    get:
+      tags: [Administracion]
+      summary: Estadisticas administrativas de usuarios.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Estadisticas obtenidas.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/usuarios:
+    get:
+      tags: [Administracion]
+      summary: Lista usuarios para administracion.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usuarios obtenidos.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/usuarios/{id}:
+    get:
+      tags: [Administracion]
+      summary: Obtiene usuario por ID.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Usuario obtenido.
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Administracion]
+      summary: Elimina logicamente un usuario.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Usuario eliminado.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/usuarios/{id}/rol:
+    patch:
+      tags: [Administracion]
+      summary: Cambia rol de usuario.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Rol actualizado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /admin/usuarios/{id}/estado:
+    patch:
+      tags: [Administracion]
+      summary: Activa o desactiva usuario.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Estado actualizado.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /chatbot/mensaje:
+    post:
+      tags: [Chatbot]
+      summary: Envia un mensaje al chatbot.
+      security:
+        - bearerAuth: []
+        - {}
+      requestBody:
+        content:
+          application/json:
+            example:
+              message: Como reporto contaminacion?
+              sessionId: web-123
+      responses:
+        "200":
+          description: Respuesta generada.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /chatbot/faqs:
+    get:
+      tags: [Chatbot]
+      summary: Lista preguntas frecuentes del chatbot.
+      responses:
+        "200":
+          description: FAQs obtenidas.

@@ -89,6 +89,9 @@ Backend/
   validate-google-credentials.js
   docs/
     README.md
+    openapi.yaml
+    integracion-frontend-entidades.md
+    PREDICCION_ZONAS_RIESGO.md
   middlewares/
     auth.middleware.js
     errorHandler.js
@@ -108,7 +111,10 @@ Backend/
     admin.routes.js
     auth.routes.js
     categoria-riesgo.routes.js
+    chatbot.routes.js
+    entidad.routes.js
     health.routes.js
+    notificacion.routes.js
     reporte.routes.js
   src/
     app.js
@@ -193,6 +199,10 @@ En desarrollo, el frontend puede seguir llamando `/api/*` porque Vite reescribe 
 
 Si necesitas publicar el backend directamente bajo `/api`, define `API_PREFIX=/api`. No se montan ambos prefijos al mismo tiempo.
 
+## OpenAPI
+
+La especificacion inicial esta disponible en [`docs/openapi.yaml`](docs/openapi.yaml). No se monta Swagger UI en runtime; el archivo queda listo para validarse con herramientas externas o integrarse en una etapa posterior.
+
 ## Rutas
 
 ### Salud
@@ -215,14 +225,17 @@ Si necesitas publicar el backend directamente bajo `/api`, define `API_PREFIX=/a
 | `POST` | `/auth/reset-password` | No | Restablece contrasena con token. |
 | `GET` | `/auth/perfil` | Si | Obtiene perfil del usuario autenticado. |
 | `PATCH` | `/auth/perfil` | Si | Actualiza perfil. |
+| `PATCH` | `/auth/avatar` | Si | Actualiza avatar con archivo `avatar`. |
 | `PATCH` | `/auth/cambiar-contrasena` | Si | Cambia contrasena y revoca refresh tokens. |
 | `PATCH` | `/auth/notificaciones` | Si | Actualiza preferencias de notificaciones. |
 | `POST` | `/auth/enviar-verificacion` | Si | Envia OTP de verificacion de email. |
 | `POST` | `/auth/verificar-email` | Si | Verifica OTP de email. |
 | `GET` | `/auth/google/url` | No | Genera URL de login con Google. |
+| `POST` | `/auth/google` | No | Login con access token de Google. |
 | `POST` | `/auth/google/login` | No | Login con `id_token` de Google. |
 | `GET` | `/auth/google/callback` | No | Callback OAuth de Google. |
 | `GET` | `/auth/facebook/url` | No | Genera URL de login con Facebook. |
+| `POST` | `/auth/facebook` | No | Login con Facebook. |
 | `GET` | `/auth/facebook/callback` | No | Callback OAuth de Facebook. |
 
 ### Reportes
@@ -233,23 +246,84 @@ Si necesitas publicar el backend directamente bajo `/api`, define `API_PREFIX=/a
 | `GET` | `/reportes/stats/categoria` | No | Estadisticas por categoria. |
 | `GET` | `/reportes/stats/timeline` | No | Serie temporal de reportes. |
 | `GET` | `/reportes/stats/heatmap` | No | Puntos para heatmap. |
+| `GET` | `/reportes/stats/ia` | Si, admin o moderador | Estadisticas de analisis IA. |
+| `GET` | `/reportes/zonas-riesgo` | Si, admin o moderador | Zonas de riesgo predictivas. |
+| `GET` | `/reportes/alertas-predictivas` | Autenticacion opcional | Alertas predictivas con filtros. |
+| `GET` | `/reportes/trending` | Autenticacion opcional | Reportes destacados por actividad. |
 | `GET` | `/reportes/export` | Si, admin o moderador | Exporta reportes. |
 | `GET` | `/reportes/mis-reportes` | Si | Lista reportes del usuario autenticado. |
+| `POST` | `/reportes/analizar-imagen` | Si | Clasifica una imagen en campo `imagen`. |
+| `POST` | `/reportes/sugerir-contenido` | Si | Sugiere titulo y descripcion desde evidencias. |
 | `GET` | `/reportes` | No | Lista reportes con filtros. |
 | `GET` | `/reportes/:id` | No | Obtiene un reporte por ID. |
-| `POST` | `/reportes` | Si | Crea reporte, con archivo opcional en campo `file`. |
+| `POST` | `/reportes` | Si | Crea reporte con evidencias opcionales en `file` o `files`. |
+| `POST` | `/reportes/:id/like` | Si | Alterna like del usuario autenticado. |
+| `POST` | `/reportes/:id/asignaciones` | Si, admin o moderador | Asigna manualmente una entidad responsable. |
+| `GET` | `/reportes/:id/evidencias` | Si | Lista evidencias de un reporte. |
+| `POST` | `/reportes/:id/evidencias` | Si | Agrega una evidencia al reporte. |
+| `DELETE` | `/reportes/:id/evidencias/:evidenciaId` | Si | Elimina logicamente una evidencia. |
 | `PATCH` | `/reportes/:id` | Si | Actualiza reporte. |
 | `DELETE` | `/reportes/:id` | Si | Elimina reporte logicamente. |
 
+Estados validos de reporte:
+
+- Entrada API: `pendiente`, `en proceso`, `en_proceso`, `resuelto`, `rechazado`.
+- Persistencia interna: `pendiente`, `en_proceso`, `resuelto`, `rechazado`.
+- `en proceso` se normaliza a `en_proceso`.
+
+Valores validos para asignacion manual:
+
+- `tipo_asignacion`: `principal`, `apoyo`.
+- `prioridad`: `baja`, `media`, `alta`, `critica`.
+
 ### Categorias de riesgo
+
+| Metodo | Ruta | Protegida | Descripcion |
+| --- | --- | --- | --- |
+| `GET` | `/categorias/estadisticas/resumen` | No | Resumen por categorias. |
+| `GET` | `/categorias/estadisticas/por-severidad` | No | Estadisticas por severidad. |
+| `GET` | `/categorias` | No | Lista categorias activas. |
+| `POST` | `/categorias` | Si, admin | Crea categoria. |
+| `PATCH` | `/categorias/:codigo` | Si, admin | Actualiza categoria. |
+| `PATCH` | `/categorias/:codigo/estado` | Si, admin | Activa o desactiva categoria. |
+| `GET` | `/categorias/:codigo/reportes` | No | Reportes de una categoria. |
+| `GET` | `/categorias/:codigo` | No | Detalle de categoria. |
+
+### Entidades y alertas de entidad
+
+| Metodo | Ruta | Protegida | Descripcion |
+| --- | --- | --- | --- |
+| `GET` | `/entidades` | Si, admin/moderador/entidad | Lista entidades institucionales. |
+| `GET` | `/entidades/:id/reportes` | Si, admin/moderador/entidad | Lista reportes asignados a una entidad. |
+| `GET` | `/entidades/mis-reportes` | Si, entidad | Lista reportes de la entidad autenticada. |
+| `GET` | `/entidades/mis-reportes/:id` | Si, entidad | Detalle de reporte asignado propio. |
+| `PATCH` | `/entidades/mis-reportes/:id/atencion` | Si, entidad | Actualiza estado de atencion. |
+| `GET` | `/entidades/mis-alertas` | Si, entidad | Lista alertas propias. |
+| `GET` | `/entidades/mis-alertas/no-leidas` | Si, entidad | Lista alertas propias no leidas. |
+| `GET` | `/entidades/mis-alertas/no-leidas/count` | Si, entidad | Cuenta alertas propias no leidas. |
+| `PATCH` | `/entidades/mis-alertas/leer-todas` | Si, entidad | Marca todas las alertas propias como leidas. |
+| `PATCH` | `/entidades/mis-alertas/:id/leer` | Si, entidad | Marca una alerta propia como leida. |
+| `PATCH` | `/entidades/mis-alertas/:id` | Si, entidad | Alias para marcar una alerta propia como leida. |
+
+### Notificaciones
+
+Todas las rutas de notificaciones requieren JWT.
 
 | Metodo | Ruta | Descripcion |
 | --- | --- | --- |
-| `GET` | `/categorias/estadisticas/resumen` | Resumen por categorias. |
-| `GET` | `/categorias/estadisticas/por-severidad` | Estadisticas por severidad. |
-| `GET` | `/categorias` | Lista categorias activas. |
-| `GET` | `/categorias/:codigo/reportes` | Reportes de una categoria. |
-| `GET` | `/categorias/:codigo` | Detalle de categoria. |
+| `GET` | `/notificaciones/contador` | Cuenta notificaciones no leidas. |
+| `POST` | `/notificaciones/fcm-token` | Registra token FCM del dispositivo. |
+| `PATCH` | `/notificaciones/marcar-todas` | Marca todas las notificaciones como leidas. |
+| `GET` | `/notificaciones` | Lista notificaciones del usuario autenticado. |
+| `PATCH` | `/notificaciones/:uuid/leida` | Marca una notificacion como leida. |
+| `DELETE` | `/notificaciones/:uuid` | Elimina una notificacion. |
+
+### Chatbot
+
+| Metodo | Ruta | Protegida | Descripcion |
+| --- | --- | --- | --- |
+| `POST` | `/chatbot/mensaje` | Autenticacion opcional | Envia mensaje al chatbot. |
+| `GET` | `/chatbot/faqs` | No | Lista preguntas frecuentes. |
 
 ### Administracion
 
