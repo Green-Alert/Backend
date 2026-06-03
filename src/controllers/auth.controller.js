@@ -22,6 +22,7 @@ import {
   consumeOAuthCallbackCode,
   createOAuthCallbackCode,
 } from '../services/oauth-callback-code.service.js';
+import { consumeOAuthState } from '../services/oauth-state.service.js';
 import { getApiPrefix } from '../config/api-prefix.config.js';
 import { getCloudinaryConfig } from '../config/cloudinary.config.js';
 import { deleteFileByPublicId, uploadFileBuffer } from '../services/cloudinary.service.js';
@@ -214,6 +215,31 @@ const errorResponseWithDevelopmentDetails = (
     message,
     details,
   });
+};
+
+const getOAuthStateErrorMessage = (reason) => {
+  if (reason === 'missing') {
+    return 'State OAuth requerido.';
+  }
+
+  if (reason === 'expired') {
+    return 'State OAuth expirado.';
+  }
+
+  return 'State OAuth invalido.';
+};
+
+export const validateOAuthCallbackState = (state, provider) => {
+  const validation = consumeOAuthState(state, provider);
+
+  if (validation.valid) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    message: getOAuthStateErrorMessage(validation.reason),
+  };
 };
 
 const verifyPassword = (password, storedHash) => {
@@ -1242,7 +1268,12 @@ export const googleAccessTokenLogin = async (req, res, next) => {
 
 export const googleCallback = async (req, res, next) => {
   try {
-    const { code } = req.query ?? {};
+    const { code, state } = req.query ?? {};
+
+    const stateValidation = validateOAuthCallbackState(state, 'google');
+    if (!stateValidation.valid) {
+      return errorResponse(res, stateValidation.message, 400);
+    }
 
     if (!code || typeof code !== 'string') {
       return errorResponse(res, 'Código de autorización de Google requerido.', 400);
@@ -1463,7 +1494,12 @@ export const facebookLogin = async (req, res, next) => {
 
 export const facebookCallback = async (req, res, next) => {
   try {
-    const { code } = req.query ?? {};
+    const { code, state } = req.query ?? {};
+
+    const stateValidation = validateOAuthCallbackState(state, 'facebook');
+    if (!stateValidation.valid) {
+      return errorResponse(res, stateValidation.message, 400);
+    }
 
     if (!code || typeof code !== 'string') {
       return errorResponse(res, 'Codigo de autorizacion de Facebook requerido.', 400);

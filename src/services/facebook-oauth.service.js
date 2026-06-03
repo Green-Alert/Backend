@@ -1,4 +1,5 @@
 import { getFacebookConfig } from '../config/facebook.config.js';
+import { createOAuthState } from './oauth-state.service.js';
 
 const isDevelopment = () => process.env.NODE_ENV === 'development';
 
@@ -63,6 +64,7 @@ export const generateFacebookAuthUrl = () => {
       redirect_uri: config.callbackUrl,
       scope: 'email,public_profile',
       response_type: 'code',
+      state: createOAuthState('facebook'),
     });
 
     return {
