@@ -152,8 +152,18 @@ const scoreZona = (reportes) => {
   return { score, nivel, severidadPromedio };
 };
 
-const buildZonas = (reportes, { min_score }) => {
-  const grouped = new Map();
+const calcularTendencia = (actual, previo) => {
+  if (previo === 0) return actual > 0 ? 'subiendo' : 'estable';
+  const ratio = actual / previo;
+  if (ratio >= 1.2) return 'subiendo';
+  if (ratio <= 0.8) return 'bajando';
+  return 'estable';
+};
+
+// cutoffDate separa el período actual (>= cutoffDate) del período previo (< cutoffDate)
+const buildZonas = (reportes, { min_score, cutoffDate }) => {
+  const grouped = new Map();     // reportes del período actual
+  const groupedPrev = new Map(); // reportes del período previo para tendencia
 
   for (const reporte of reportes) {
     const lat = Number(reporte.latitud);
@@ -161,7 +171,9 @@ const buildZonas = (reportes, { min_score }) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
     const key = gridKeyFor(lat, lng);
-    grouped.set(key, [...(grouped.get(key) || []), reporte]);
+    const isRecent = !cutoffDate || new Date(reporte.created_at) >= cutoffDate;
+    const target = isRecent ? grouped : groupedPrev;
+    target.set(key, [...(target.get(key) || []), reporte]);
   }
 
   return [...grouped.entries()]
@@ -169,15 +181,27 @@ const buildZonas = (reportes, { min_score }) => {
       const [latCell, lngCell] = key.split(':').map(Number);
       const { score, nivel, severidadPromedio } = scoreZona(items);
       const tipoCounts = new Map();
+      const subcatCounts = new Map();
+      const municipioCounts = new Map();
+      const departamentoCounts = new Map();
       let latest = null;
 
       for (const item of items) {
         tipoCounts.set(item.tipo_contaminacion, (tipoCounts.get(item.tipo_contaminacion) || 0) + 1);
+        if (item.subcategoria) subcatCounts.set(item.subcategoria, (subcatCounts.get(item.subcategoria) || 0) + 1);
+        if (item.municipio) municipioCounts.set(item.municipio, (municipioCounts.get(item.municipio) || 0) + 1);
+        if (item.departamento) departamentoCounts.set(item.departamento, (departamentoCounts.get(item.departamento) || 0) + 1);
         const itemDate = new Date(item.created_at).getTime();
         if (!latest || itemDate > new Date(latest).getTime()) latest = item.created_at;
       }
 
       const [tipoDominante] = [...tipoCounts.entries()].sort((a, b) => b[1] - a[1])[0] || ['otro'];
+      const [subcategoriaDominante = null] = [...subcatCounts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+      const [municipio = null] = [...municipioCounts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+      const [departamento = null] = [...departamentoCounts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+
+      const prevItems = groupedPrev.get(key) || [];
+      const tendencia = calcularTendencia(items.length, prevItems.length);
 
       return {
         id: key,
@@ -187,7 +211,12 @@ const buildZonas = (reportes, { min_score }) => {
           lng: Number((lngCell + (DEFAULT_CELDA_GRADOS / 2)).toFixed(6)),
         },
         tipo_dominante: tipoDominante,
+        subcategoria_dominante: subcategoriaDominante,
+        municipio,
+        departamento,
         n_reportes: items.length,
+        n_reportes_previo: prevItems.length,
+        tendencia,
         severidad_promedio: Number(severidadPromedio.toFixed(2)),
         ultimo_reporte: latest,
         score,
@@ -218,14 +247,18 @@ export const calcularZonasRiesgo = async (params) => {
   const cached = getCached(key);
   if (cached) return cached;
 
+  // Fetch 2× el período solicitado para calcular tendencia (período actual vs período previo)
+  const desdeDoble = new Date(params.desde);
+  desdeDoble.setDate(desdeDoble.getDate() - params.dias);
+
   const reportes = await ReporteModel.findParaPrediccion({
-    desde: params.desde,
+    desde: desdeDoble,
     tipo: params.tipo,
   });
   const payload = {
     actualizado_en: new Date().toISOString(),
     celda_grados: DEFAULT_CELDA_GRADOS,
-    zonas: buildZonas(reportes, params),
+    zonas: buildZonas(reportes, { min_score: params.min_score, cutoffDate: params.desde }),
   };
 
   return setCached(key, payload);
@@ -257,7 +290,12 @@ export const calcularAlertasPredictivas = async (params) => {
       zona_id: zona.zona_id,
       centro: zona.centro,
       tipo_dominante: zona.tipo_dominante,
+      subcategoria_dominante: zona.subcategoria_dominante,
+      municipio: zona.municipio,
+      departamento: zona.departamento,
       n_reportes: zona.n_reportes,
+      n_reportes_previo: zona.n_reportes_previo,
+      tendencia: zona.tendencia,
       score: zona.score,
       nivel: zona.nivel,
       ultimo_reporte: zona.ultimo_reporte,
