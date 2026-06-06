@@ -6,6 +6,7 @@ import {
   ReporteModel,
   normalizeReporteEstado,
 } from '../models/reporte.model.js';
+import ExcelJS from 'exceljs';
 import fs from 'node:fs/promises';
 import { CategoriaRiesgoModel } from '../models/categoria-riesgo.model.js';
 import { UsuarioModel }   from '../models/usuario.model.js';
@@ -590,27 +591,107 @@ export const exportReportes = async (req, res, next) => {
       );
     }
 
-    const headers = [
-      'titulo',
-      'tipo_contaminacion',
-      'nivel_severidad',
-      'estado',
-      'municipio',
-      'autor_nombre',
-      'autor_apellido',
-      'created_at',
+    // ── XLSX branded export ──────────────────────────────────────────────────
+    const SEVERITY_FILL = {
+      critico: 'FFFDE8E8',
+      alto:    'FFFFF3E0',
+      medio:   'FFFFFDE7',
+      bajo:    'FFF1F8E9',
+    };
+    const ESTADO_COLOR = {
+      resuelto:    'FF388E3C',
+      en_proceso:  'FFF57C00',
+      en_revision: 'FFF57C00',
+      rechazado:   'FFD32F2F',
+      pendiente:   'FF757575',
+    };
+
+    const formatDate = (raw) => {
+      if (!raw) return '';
+      const d = new Date(raw);
+      if (isNaN(d)) return String(raw);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'GreenAlert';
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet('Reportes', {
+      views: [{ state: 'frozen', ySplit: 2 }],
+    });
+
+    const COLUMNS = [
+      { header: 'Título',                width: 38 },
+      { header: 'Tipo de contaminación', width: 24 },
+      { header: 'Severidad',             width: 14 },
+      { header: 'Estado',                width: 16 },
+      { header: 'Municipio',             width: 20 },
+      { header: 'Nombre autor',          width: 18 },
+      { header: 'Apellido autor',        width: 18 },
+      { header: 'Fecha creación',        width: 18 },
     ];
 
-    const csvRows = [
-      headers.join(','),
-      ...reportes.map((row) => headers.map((key) => toCsvValue(row[key])).join(',')),
-    ];
+    const totalCols = COLUMNS.length;
 
-    const csvContent = `\ufeff${csvRows.join('\n')}`;
+    // Row 1 — branding header (merged across all columns)
+    ws.mergeCells(1, 1, 1, totalCols);
+    const brandCell = ws.getCell('A1');
+    brandCell.value = `GreenAlert — Exportación de Reportes  ·  ${formatDate(new Date())}`;
+    brandCell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    brandCell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E7D32' } };
+    brandCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 26;
 
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="reportes_export.csv"');
-    return res.status(200).send(csvContent);
+    // Row 2 — column headers
+    const headerRow = ws.getRow(2);
+    COLUMNS.forEach((col, i) => {
+      const cell = headerRow.getCell(i + 1);
+      cell.value     = col.header;
+      cell.font      = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF388E3C' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border    = { bottom: { style: 'thin', color: { argb: 'FF1B5E20' } } };
+      ws.getColumn(i + 1).width = col.width;
+    });
+    headerRow.height = 22;
+
+    ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: totalCols } };
+
+    // Data rows
+    reportes.forEach((r) => {
+      const row = ws.addRow([
+        r.titulo,
+        r.tipo_contaminacion,
+        r.nivel_severidad,
+        r.estado,
+        r.municipio,
+        r.autor_nombre,
+        r.autor_apellido,
+        formatDate(r.created_at),
+      ]);
+      row.height = 18;
+
+      const bgArgb = SEVERITY_FILL[String(r.nivel_severidad ?? '').toLowerCase()] ?? 'FFFFFFFF';
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+        cell.alignment = { vertical: 'middle' };
+      });
+
+      const estadoColor = ESTADO_COLOR[String(r.estado ?? '').toLowerCase()];
+      if (estadoColor) {
+        row.getCell(4).font = { bold: true, color: { argb: estadoColor } };
+      }
+    });
+
+    // Use writeBuffer to avoid stream corruption from compression middleware
+    const buffer = await wb.xlsx.writeBuffer();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="greenalert_reportes_${dateStr}.xlsx"`);
+    res.setHeader('Content-Length', buffer.length);
+    return res.status(200).send(buffer);
   } catch (error) {
     return next(error);
   }
@@ -624,14 +705,19 @@ export const getMisReportes = async (req, res, next) => {
       return errorResponse(res, 'No autorizado.', 401);
     }
 
-    const { limit = 20, offset = 0 } = req.query;
+    const { limit = 20, offset = 0, estado, nivel_severidad } = req.query;
 
-    const reportes = await ReporteModel.findByUsuario(id_usuario, {
+    const filters = {
       limit: Number(limit),
       offset: Number(offset),
-    });
+      estado: estado?.trim() || null,
+      nivel_severidad: nivel_severidad?.trim() || null,
+    };
 
-    const total = await ReporteModel.countByUsuario(id_usuario);
+    const [reportes, total] = await Promise.all([
+      ReporteModel.findByUsuario(id_usuario, filters),
+      ReporteModel.countByUsuario(id_usuario, { estado: filters.estado, nivel_severidad: filters.nivel_severidad }),
+    ]);
 
     return successResponse(
       res,
