@@ -249,21 +249,29 @@ export const ReporteModel = {
   
     //Busca los reportes creados por un usuario específico
    
-  findByUsuario: async (id_usuario, { limit = 20, offset = 0 } = {}) => {
+  findByUsuario: async (id_usuario, { limit = 20, offset = 0, estado = null, nivel_severidad = null } = {}) => {
     const safeLimit  = Math.max(1, Math.min(100, parseInt(limit,  10) || 20));
     const safeOffset = Math.max(0,               parseInt(offset, 10) || 0);
+    const conditions = ['r.id_usuario = ?', 'r.deleted_at IS NULL'];
+    const params = [id_usuario];
+    if (estado)           { conditions.push('r.estado = ?');           params.push(estado); }
+    if (nivel_severidad)  { conditions.push('r.nivel_severidad = ?');  params.push(nivel_severidad); }
+    const where = conditions.join(' AND ');
     const [rows] = await pool.execute(
       `SELECT r.id_reporte, r.uuid, r.tipo_contaminacion, r.subcategoria, r.estado, r.nivel_severidad,
-              r.titulo, r.municipio, r.departamento,
+              r.titulo, r.descripcion, r.municipio, r.departamento,
               ${ESTADO_ATENCION_RESPONSABLE_SQL},
               r.ia_etiquetas, r.ia_confianza, r.ia_procesado, r.confianza_evidencia,
               r.votos_relevancia, r.vistas,
-              r.created_at, r.updated_at
+              r.created_at, r.updated_at,
+              (SELECT e.url_archivo FROM evidencias e
+               WHERE e.id_reporte = r.id_reporte AND e.tipo_archivo = 'imagen'
+               ORDER BY e.orden ASC, e.created_at ASC LIMIT 1) AS primera_imagen
        FROM reportes r
-       WHERE r.id_usuario = ? AND r.deleted_at IS NULL
+       WHERE ${where}
        ORDER BY r.created_at DESC
        LIMIT ${safeLimit} OFFSET ${safeOffset}`,
-      [id_usuario]
+      params
     );
     return rows.map(normalizeReporteIA);
   },
@@ -425,12 +433,14 @@ export const ReporteModel = {
   },
 
   // Cuenta total de reportes de un usuario específico
-  countByUsuario: async (id_usuario) => {
+  countByUsuario: async (id_usuario, { estado = null, nivel_severidad = null } = {}) => {
+    const conditions = ['id_usuario = ?', 'deleted_at IS NULL'];
+    const params = [id_usuario];
+    if (estado)           { conditions.push('estado = ?');           params.push(estado); }
+    if (nivel_severidad)  { conditions.push('nivel_severidad = ?');  params.push(nivel_severidad); }
     const [[row]] = await pool.execute(
-      `SELECT COUNT(*) AS total
-       FROM reportes
-       WHERE id_usuario = ? AND deleted_at IS NULL`,
-      [id_usuario]
+      `SELECT COUNT(*) AS total FROM reportes WHERE ${conditions.join(' AND ')}`,
+      params
     );
     return row?.total ?? 0;
   },
